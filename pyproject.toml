@@ -8,7 +8,6 @@ dependencies = [
     "aiogram>=3.20.0.post0",
     "sqlmodel>=0.0.24",
     "pydantic-settings>=2.0.0",
-    "pytest>=7.0.0",
     "loguru>=0.7.3",
     "aiohttp>=3.8.0",
 ]
@@ -18,5 +17,6 @@ dev = [
     "coverage>=7.8.0",
     "mypy>=1.15.0",
     "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
     "ruff>=0.11.7",
 ]

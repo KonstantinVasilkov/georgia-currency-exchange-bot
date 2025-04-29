@@ -8,8 +8,8 @@ from sqlmodel import Session
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.db.session import get_engine, create_db_and_tables
-from src.config.settings import settings, PROJECT_ROOT
+from src.db.session import get_engine, create_db_and_tables  # noqa: E402
+from src.config.settings import settings, PROJECT_ROOT  # noqa: E402
 
 
 @pytest.fixture(scope="session")

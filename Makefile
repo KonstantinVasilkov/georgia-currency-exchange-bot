@@ -2,7 +2,7 @@
 
 # Define the command to run Python
 # This can be overridden with environment variables
-CMD ?= python -m
+CMD:=uv run
 
 .PHONY: lint format test test_with_coverage
 

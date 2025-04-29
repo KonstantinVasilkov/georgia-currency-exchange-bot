@@ -22,6 +22,7 @@ logger = get_logger(__name__)
 
 class HTTPMethod(str, Enum):
     """HTTP methods enum."""
+
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -33,7 +34,7 @@ class HTTPMethod(str, Enum):
 
 class AbstractRateLimiter:
     """Abstract base class for rate limiters."""
-    
+
     async def acquire(self) -> None:
         """Acquire a token from the rate limiter."""
         raise NotImplementedError("Subclasses must implement acquire()")
@@ -120,7 +121,9 @@ class BaseRequester:
         while attempt < self.retries:
             try:
                 if self.pre_request_hook and not self._is_hook_running:
-                    logger.debug("Executing pre-request hook: %s", self.pre_request_hook.__name__)
+                    logger.debug(
+                        "Executing pre-request hook: %s", self.pre_request_hook.__name__
+                    )
                     self._is_hook_running = True
                     await self.pre_request_hook()
                     self._is_hook_running = False
@@ -154,26 +157,34 @@ class BaseRequester:
                             response_content = await response.text()
                         except UnicodeDecodeError:
                             response_content = await response.read()
-                            logger.warning(f"Response content could not be decoded as text. Returning bytes.")
+                            logger.warning(
+                                "Response content could not be decoded as text. Returning bytes."
+                            )
 
                     logger.info(f"Response Status: {response.status}")
                     logger.debug(f"Response Content: {response_content}")
-                    
+
                     response.raise_for_status()
-                    
+
                     if return_headers:
                         return response_content, response.headers
                     else:
                         return response_content
             except ClientResponseError as e:
-                logger.warning(f"HTTP error on {method.upper()} {url}: {e.status} - {e.message}")
+                logger.warning(
+                    f"HTTP error on {method.upper()} {url}: {e.status} - {e.message}"
+                )
                 should_retry = False
                 if e.status in self.retry_status_codes:
                     should_retry = True
-                    logger.info(f"Status code {e.status} is in custom retry list and will be retried.")
+                    logger.info(
+                        f"Status code {e.status} is in custom retry list and will be retried."
+                    )
                 elif e.status >= 500:
                     should_retry = True
-                    logger.info(f"Status code {e.status} is a server error and will be retried.")
+                    logger.info(
+                        f"Status code {e.status} is a server error and will be retried."
+                    )
 
                 if should_retry:
                     attempt += 1
@@ -200,7 +211,9 @@ class BaseRequester:
                 logger.exception(f"Unexpected error on {method.upper()} {url}: {e!s}")
                 raise
 
-        raise Exception(f"Failed to {method.upper()} {url} after {self.retries} attempts.")
+        raise Exception(
+            f"Failed to {method.upper()} {url} after {self.retries} attempts."
+        )
 
     def _build_url(self, endpoint: str) -> str:
         """
@@ -212,7 +225,11 @@ class BaseRequester:
         Returns:
             The full URL
         """
-        return endpoint if endpoint.startswith(("http://", "https://")) else f"{self.base_url}/{endpoint.lstrip('/')}"
+        return (
+            endpoint
+            if endpoint.startswith(("http://", "https://"))
+            else f"{self.base_url}/{endpoint.lstrip('/')}"
+        )
 
     async def get(
         self,
@@ -234,7 +251,11 @@ class BaseRequester:
             The response body, or a tuple of (response body, response headers) if return_headers is True
         """
         return await self._send_request(
-            HTTPMethod.GET, endpoint, params=params, headers=headers, return_headers=return_headers
+            HTTPMethod.GET,
+            endpoint,
+            params=params,
+            headers=headers,
+            return_headers=return_headers,
         )
 
     async def post(
@@ -259,7 +280,12 @@ class BaseRequester:
             The response body, or a tuple of (response body, response headers) if return_headers is True
         """
         return await self._send_request(
-            HTTPMethod.POST, endpoint, data=data, json=json, headers=headers, return_headers=return_headers
+            HTTPMethod.POST,
+            endpoint,
+            data=data,
+            json=json,
+            headers=headers,
+            return_headers=return_headers,
         )
 
     async def put(
@@ -284,7 +310,12 @@ class BaseRequester:
             The response body, or a tuple of (response body, response headers) if return_headers is True
         """
         return await self._send_request(
-            HTTPMethod.PUT, endpoint, data=data, json=json, headers=headers, return_headers=return_headers
+            HTTPMethod.PUT,
+            endpoint,
+            data=data,
+            json=json,
+            headers=headers,
+            return_headers=return_headers,
         )
 
     async def delete(
@@ -307,7 +338,11 @@ class BaseRequester:
             The response body, or a tuple of (response body, response headers) if return_headers is True
         """
         return await self._send_request(
-            HTTPMethod.DELETE, endpoint, params=params, headers=headers, return_headers=return_headers
+            HTTPMethod.DELETE,
+            endpoint,
+            params=params,
+            headers=headers,
+            return_headers=return_headers,
         )
 
     async def patch(
@@ -332,5 +367,10 @@ class BaseRequester:
             The response body, or a tuple of (response body, response headers) if return_headers is True
         """
         return await self._send_request(
-            HTTPMethod.PATCH, endpoint, data=data, json=json, headers=headers, return_headers=return_headers
+            HTTPMethod.PATCH,
+            endpoint,
+            data=data,
+            json=json,
+            headers=headers,
+            return_headers=return_headers,
         )

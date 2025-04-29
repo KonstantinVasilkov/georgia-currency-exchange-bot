@@ -7,7 +7,6 @@ formats, and handlers based on the environment.
 
 import os
 import sys
-from pathlib import Path
 
 from loguru import logger
 
@@ -73,6 +72,7 @@ def get_logger(name: str = None):
     if name is None:
         # Get the calling module's name
         import inspect
+
         frame = inspect.currentframe().f_back
         name = frame.f_globals["__name__"]
 
