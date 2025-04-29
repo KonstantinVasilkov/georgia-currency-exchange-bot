@@ -196,8 +196,8 @@ Below are carefully scoped prompts for each step. The idea is that you can feed 
 **Objective**: Create the initial monorepo folder structure.
 
 **Instructions**:
-1. Create a `repo/` directory (adjust naming as needed).
-2. Inside `repo/`, create the following subdirectories:
+1. Create a `src/` directory (adjust naming as needed).
+2. Inside `src/`, create the following subdirectories:
    - `bot/`
    - `services/`
    - `db/models/`
@@ -205,7 +205,7 @@ Below are carefully scoped prompts for each step. The idea is that you can feed 
    - `db/migrations/` (empty for now)
    - `config/`
    - `tests/`
-3. Add an empty `main.py` at the root of `repo/`.
+3. Add an empty `main.py` at the root of `src/`.
 4. Add a placeholder `.gitignore` ignoring typical Python, cache, and env files.
 5. Provide a textual output describing the final structure.
 
@@ -310,12 +310,18 @@ Below are carefully scoped prompts for each step. The idea is that you can feed 
 ---
 
 ## **Prompt for Step 2.3**
-
+Let's refactor tests. Follow the rules:
+1. ALWAYS Use ONLY pytest and no other test libraries
+2. Setup tests dependencies in the conftest on a top level of the src/tests folder
+3. Modify settings.py to point to the test DB during the test execution
+4. TEst setup should include DB creation, creation of the tables, and teardown of the test DB
+5. If a test required some data in the DB the first approach is to create this data using app functionality (integration test) and only if it is impossible - create data with the help of ORM.
 ```text
 **Objective**: Initialize Alembic for migrations.
 
 **Instructions**:
-1. Show how to run `alembic init db/migrations`.
+0. check alembic is in project dependencies and installed
+1. Show how to run `uv run alembic init db/migrations`.
 2. Modify the generated `alembic.ini` and `env.py` to reference the `db/session.py` engine and `db.models` metadata.
 3. Make sure the models import is recognized so Alembic can auto-detect changes.
 4. Provide the relevant sections of `alembic.ini` and `env.py` that you changed.
