@@ -6,10 +6,12 @@ if TYPE_CHECKING:
     from src.db.models.organization import Organization
     from src.db.models.rate import Rate
 
+
 class Office(SQLModel, table=True):
     """
     Office model representing a physical location where currency exchange services are provided.
     """
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     address: str

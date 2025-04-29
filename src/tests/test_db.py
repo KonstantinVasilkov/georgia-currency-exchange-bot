@@ -1,6 +1,6 @@
-import pytest
 from sqlmodel import select
 from src.config.settings import settings
+
 
 def test_db_connection(db_engine):
     """

@@ -5,10 +5,12 @@ from datetime import datetime
 if TYPE_CHECKING:
     from src.db.models.office import Office
 
+
 class Rate(SQLModel, table=True):
     """
     Rate model representing currency exchange rates for a specific office.
     """
+
     id: Optional[int] = Field(default=None, primary_key=True)
     office_id: int = Field(foreign_key="office.id")
     currency: str = Field(index=True)  # Currency code (e.g., USD, EUR)

@@ -2,7 +2,7 @@ import os
 import sys
 import pytest
 from pathlib import Path
-from sqlmodel import SQLModel, Session
+from sqlmodel import Session
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
@@ -10,6 +10,7 @@ sys.path.insert(0, str(project_root))
 
 from src.db.session import get_engine, create_db_and_tables
 from src.config.settings import settings, PROJECT_ROOT
+
 
 @pytest.fixture(scope="session")
 def db_engine():
@@ -32,6 +33,7 @@ def db_engine():
     test_db_path = Path(PROJECT_ROOT) / "src" / "db" / "test_database.db"
     if test_db_path.exists():
         os.remove(test_db_path)
+
 
 @pytest.fixture
 def db_session(db_engine):

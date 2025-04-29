@@ -1,13 +1,10 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 
 from alembic import context
 from sqlmodel import SQLModel
 
 # Import all models so that SQLModel can find them
-from src.db.models import Office, Organization, Rate
 from src.db.session import get_engine
 from src.config.settings import settings
 

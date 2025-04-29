@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel, create_engine, Session
 from src.config.settings import settings
 
+
 def get_engine():
     """
     Create and return a SQLAlchemy engine.
@@ -15,6 +16,7 @@ def get_engine():
 
     return engine
 
+
 # Create a sessionmaker that will be used to get database sessions
 def get_session():
     """
@@ -24,6 +26,7 @@ def get_session():
     engine = get_engine()
     with Session(engine) as session:
         yield session
+
 
 # Function to create all tables defined in SQLModel models
 def create_db_and_tables():

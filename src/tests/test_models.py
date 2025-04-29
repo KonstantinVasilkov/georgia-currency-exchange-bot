@@ -1,6 +1,6 @@
-import pytest
 from sqlmodel import select
 from src.db.models import Office, Organization, Rate
+
 
 def test_models_exist():
     """
@@ -10,6 +10,7 @@ def test_models_exist():
     assert Office.__tablename__ == "office"
     assert Organization.__tablename__ == "organization"
     assert Rate.__tablename__ == "rate"
+
 
 def test_models_query(db_session):
     """
@@ -27,6 +28,7 @@ def test_models_query(db_session):
     assert len(offices) == 0
     assert len(organizations) == 0
     assert len(rates) == 0
+
 
 def test_models_create(db_session):
     """
@@ -51,7 +53,7 @@ def test_models_create(db_session):
         address="123 Test St",
         lat=41.7151,
         lng=44.8271,
-        organization_id=org.id
+        organization_id=org.id,
     )
     db_session.add(office)
     db_session.commit()
@@ -63,12 +65,7 @@ def test_models_create(db_session):
     assert office.organization_id == org.id
 
     # Create a test rate
-    rate = Rate(
-        office_id=office.id,
-        currency="USD",
-        buy_rate=2.65,
-        sell_rate=2.70
-    )
+    rate = Rate(office_id=office.id, currency="USD", buy_rate=2.65, sell_rate=2.70)
     db_session.add(rate)
     db_session.commit()
     db_session.refresh(rate)

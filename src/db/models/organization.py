@@ -5,10 +5,12 @@ from datetime import datetime
 if TYPE_CHECKING:
     from src.db.models.office import Office
 
+
 class Organization(SQLModel, table=True):
     """
     Organization model representing a company that operates currency exchange offices.
     """
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     is_active: bool = Field(default=True)
