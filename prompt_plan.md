@@ -387,7 +387,7 @@ Let's refactor tests. Follow the rules:
 **Objective**: Use `aiohttp` to fetch MyFin rates in `sync_exchange_data()`.
 
 **Instructions**:
-1. In `SyncService.py`, import `aiohttp`.
+1. In `src/services/sync_service.py` creat a service class SyncService. It should 
 2. Inside `sync_exchange_data()`, open an `aiohttp.ClientSession`, make a GET request to your MyFin mock URL, and parse JSON.
 3. For demonstration, pretend the JSON has a structure with offices and rates. Store it in a local variable (no DB logic yet).
 4. Provide the updated file.

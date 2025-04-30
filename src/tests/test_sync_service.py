@@ -6,7 +6,7 @@ synchronize exchange rate data.
 """
 
 import pytest
-from src.services.SyncService import sync_exchange_data
+from src.services.sync_service import sync_exchange_data
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ formats, and handlers based on the environment.
 
 import os
 import sys
+from typing import Optional
 
 from loguru import logger
 
@@ -59,7 +60,7 @@ if not settings.ENVIRONMENT == "TEST":
     )
 
 
-def get_logger(name: str = None):
+def get_logger(name: Optional[str] = None):
     """
     Get a logger instance with the given name.
 
