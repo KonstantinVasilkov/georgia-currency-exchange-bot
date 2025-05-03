@@ -4,11 +4,8 @@ Tests for the repository classes.
 This module contains tests for the repository classes, which are used to interact with the database.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from sqlmodel import select
 
-from src.db.models import Office, Organization, Rate
 from src.db.repositories import OfficeRepository, OrganizationRepository, RateRepository
 
 
@@ -36,7 +33,10 @@ def test_organization_repository(db_session):
     assert retrieved_org.name == org.name
 
     # Test update
-    update_data = {"name": "Updated Organization", "description": "An updated description"}
+    update_data = {
+        "name": "Updated Organization",
+        "description": "An updated description",
+    }
     updated_org = repo.update(db_session, db_obj=org, obj_in=update_data)
     assert updated_org.id == org.id
     assert updated_org.name == "Updated Organization"
@@ -196,16 +196,6 @@ def test_rate_repository(db_session):
     assert rate.currency == "USD"
     assert rate.buy_rate == 2.65
     assert rate.sell_rate == 2.70
-
-    # Create another rate for a different currency
-    eur_rate_data = {
-        "office_id": office.id,
-        "currency": "EUR",
-        "buy_rate": 3.10,
-        "sell_rate": 3.15,
-        "timestamp": datetime.utcnow(),
-    }
-    eur_rate = rate_repo.create(db_session, eur_rate_data)
 
     # Test get
     retrieved_rate = rate_repo.get(db_session, rate.id)

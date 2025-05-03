@@ -5,7 +5,7 @@ This module provides a base repository class for database operations.
 It implements common CRUD operations that can be used by specific repositories.
 """
 
-from typing import Generic, TypeVar, Type, List, Optional, Any, Dict, Union
+from typing import Generic, TypeVar, Type, Optional, Any, Dict, Union, Sequence
 from sqlmodel import SQLModel, select, Session
 
 # Define a type variable for the model
@@ -69,7 +69,7 @@ class BaseRepository(Generic[T]):
 
     def get_multi(
         self, session: Session, *, skip: int = 0, limit: int = 100
-    ) -> List[T]:
+    ) -> Sequence[T]:
         """
         Get multiple records.
 
@@ -144,11 +144,11 @@ class BaseRepository(Generic[T]):
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
-        
+
         result = session.exec(statement).first()
         return result is not None
 
-    def find_by(self, session: Session, **kwargs) -> List[T]:
+    def find_by(self, session: Session, **kwargs) -> Sequence[T]:
         """
         Find records by criteria.
 
@@ -163,7 +163,7 @@ class BaseRepository(Generic[T]):
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
-        
+
         return session.exec(statement).all()
 
     def find_one_by(self, session: Session, **kwargs) -> Optional[T]:
@@ -181,5 +181,5 @@ class BaseRepository(Generic[T]):
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
-        
+
         return session.exec(statement).first()

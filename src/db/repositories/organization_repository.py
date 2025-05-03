@@ -4,9 +4,10 @@ Organization repository for database operations.
 This module provides a repository for Organization model operations.
 """
 
-from typing import List, Optional
+from typing import List, Sequence
 import uuid
-from sqlmodel import Session, select
+from sqlalchemy import true
+from sqlmodel import Session, select, col
 from datetime import datetime
 
 from src.db.models.organization import Organization
@@ -24,7 +25,9 @@ class OrganizationRepository(BaseRepository[Organization]):
         """Initialize the repository with the Organization model."""
         super().__init__(Organization)
 
-    def get_active_organizations(self, session: Session, skip: int = 0, limit: int = 100) -> List[Organization]:
+    def get_active_organizations(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> Sequence[Organization]:
         """
         Get active organizations.
 
@@ -36,10 +39,17 @@ class OrganizationRepository(BaseRepository[Organization]):
         Returns:
             A list of active organizations.
         """
-        statement = select(Organization).where(Organization.is_active == True).offset(skip).limit(limit)
+        statement = (
+            select(Organization)
+            .where(Organization.is_active == true())
+            .offset(skip)
+            .limit(limit)
+        )
         return session.exec(statement).all()
 
-    def mark_inactive_if_not_in_list(self, session: Session, active_ids: List[uuid.UUID]) -> int:
+    def mark_inactive_if_not_in_list(
+        self, session: Session, active_ids: List[uuid.UUID]
+    ) -> int:
         """
         Mark organizations as inactive if their IDs are not in the provided list.
 
@@ -55,8 +65,8 @@ class OrganizationRepository(BaseRepository[Organization]):
 
         statement = (
             select(Organization)
-            .where(Organization.is_active == True)
-            .where(Organization.id.not_in(active_ids))
+            .where(Organization.is_active == true())
+            .where(col(Organization.id).not_in(active_ids))
         )
         orgs_to_deactivate = session.exec(statement).all()
 
@@ -93,7 +103,9 @@ class OrganizationRepository(BaseRepository[Organization]):
             # Create new organization
             return self.create(session, obj_in=org_data)
 
-    def get_with_offices(self, session: Session, skip: int = 0, limit: int = 100) -> List[Organization]:
+    def get_with_offices(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> Sequence[Organization]:
         """
         Get organizations with their offices.
 
@@ -107,7 +119,7 @@ class OrganizationRepository(BaseRepository[Organization]):
         """
         statement = (
             select(Organization)
-            .where(Organization.is_active == True)
+            .where(Organization.is_active == true())
             .offset(skip)
             .limit(limit)
         )

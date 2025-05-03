@@ -4,9 +4,9 @@ Rate repository for database operations.
 This module provides a repository for Rate model operations.
 """
 
-from typing import List, Optional
+from typing import Optional, Sequence
 import uuid
-from sqlmodel import Session, select
+from sqlmodel import Session, select, col
 from datetime import datetime, timedelta
 
 from src.db.models.rate import Rate
@@ -24,7 +24,12 @@ class RateRepository(BaseRepository[Rate]):
         """Initialize the repository with the Rate model."""
         super().__init__(Rate)
 
-    def get_latest_rates(self, session: Session, office_id: Optional[uuid.UUID] = None, currency: Optional[str] = None) -> List[Rate]:
+    def get_latest_rates(
+        self,
+        session: Session,
+        office_id: Optional[uuid.UUID] = None,
+        currency: Optional[str] = None,
+    ) -> Sequence[Rate]:
         """
         Get the latest rates.
 
@@ -36,7 +41,7 @@ class RateRepository(BaseRepository[Rate]):
         Returns:
             A list of the latest rates.
         """
-        statement = select(Rate).order_by(Rate.timestamp.desc())
+        statement = select(Rate).order_by(col(Rate.timestamp).desc())
 
         if office_id:
             statement = statement.where(Rate.office_id == office_id)
@@ -46,7 +51,7 @@ class RateRepository(BaseRepository[Rate]):
 
         return session.exec(statement).all()
 
-    def get_rates_by_office(self, session: Session, office_id: uuid.UUID) -> List[Rate]:
+    def get_rates_by_office(self, session: Session, office_id: uuid.UUID) -> Sequence[Rate]:
         """
         Get rates by office ID.
 
@@ -57,10 +62,14 @@ class RateRepository(BaseRepository[Rate]):
         Returns:
             A list of rates for the specified office.
         """
-        statement = select(Rate).where(Rate.office_id == office_id).order_by(Rate.timestamp.desc())
+        statement = (
+            select(Rate)
+            .where(Rate.office_id == office_id)
+            .order_by(col(Rate.timestamp).desc())
+        )
         return session.exec(statement).all()
 
-    def get_rates_by_currency(self, session: Session, currency: str) -> List[Rate]:
+    def get_rates_by_currency(self, session: Session, currency: str) -> Sequence[Rate]:
         """
         Get rates by currency.
 
@@ -71,10 +80,16 @@ class RateRepository(BaseRepository[Rate]):
         Returns:
             A list of rates for the specified currency.
         """
-        statement = select(Rate).where(Rate.currency == currency).order_by(Rate.timestamp.desc())
+        statement = (
+            select(Rate)
+            .where(Rate.currency == currency)
+            .order_by(col(Rate.timestamp).desc())
+        )
         return session.exec(statement).all()
 
-    def get_best_rates(self, session: Session, currency: str, buy: bool = True) -> List[Rate]:
+    def get_best_rates(
+        self, session: Session, currency: str, buy: bool = True
+    ) -> Sequence[Rate]:
         """
         Get the best rates for a currency.
 
@@ -90,10 +105,10 @@ class RateRepository(BaseRepository[Rate]):
 
         if buy:
             # For buy rates, lower is better
-            statement = statement.order_by(Rate.buy_rate)
+            statement = statement.order_by(col(Rate.buy_rate))
         else:
             # For sell rates, higher is better
-            statement = statement.order_by(Rate.sell_rate.desc())
+            statement = statement.order_by(col(Rate.sell_rate).desc())
 
         return session.exec(statement).all()
 

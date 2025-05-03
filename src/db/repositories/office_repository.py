@@ -4,9 +4,10 @@ Office repository for database operations.
 This module provides a repository for Office model operations.
 """
 
-from typing import List, Optional
+from typing import List, Sequence
 import uuid
-from sqlmodel import Session, select
+from sqlalchemy import true
+from sqlmodel import Session, select, col
 from datetime import datetime
 
 from src.db.models.office import Office
@@ -24,7 +25,9 @@ class OfficeRepository(BaseRepository[Office]):
         """Initialize the repository with the Office model."""
         super().__init__(Office)
 
-    def get_active_offices(self, session: Session, skip: int = 0, limit: int = 100) -> List[Office]:
+    def get_active_offices(
+        self, session: Session, skip: int = 0, limit: int = 100
+    ) -> Sequence[Office]:
         """
         Get active offices.
 
@@ -36,10 +39,14 @@ class OfficeRepository(BaseRepository[Office]):
         Returns:
             A list of active offices.
         """
-        statement = select(Office).where(Office.is_active == True).offset(skip).limit(limit)
+        statement = (
+            select(Office).where(Office.is_active == true()).offset(skip).limit(limit)
+        )
         return session.exec(statement).all()
 
-    def get_by_organization(self, session: Session, organization_id: uuid.UUID) -> List[Office]:
+    def get_by_organization(
+        self, session: Session, organization_id: uuid.UUID
+    ) -> Sequence[Office]:
         """
         Get offices by organization ID.
 
@@ -55,7 +62,7 @@ class OfficeRepository(BaseRepository[Office]):
 
     def get_by_coordinates(
         self, session: Session, lat: float, lng: float, radius: float = 1.0
-    ) -> List[Office]:
+    ) -> Sequence[Office]:
         """
         Get offices near the specified coordinates.
 
@@ -77,7 +84,7 @@ class OfficeRepository(BaseRepository[Office]):
 
         statement = (
             select(Office)
-            .where(Office.is_active == True)
+            .where(Office.is_active == true())
             .where(Office.lat >= lat - degree_radius)
             .where(Office.lat <= lat + degree_radius)
             .where(Office.lng >= lng - degree_radius)
@@ -85,7 +92,9 @@ class OfficeRepository(BaseRepository[Office]):
         )
         return session.exec(statement).all()
 
-    def mark_inactive_if_not_in_list(self, session: Session, active_ids: List[uuid.UUID]) -> int:
+    def mark_inactive_if_not_in_list(
+        self, session: Session, active_ids: List[uuid.UUID]
+    ) -> int:
         """
         Mark offices as inactive if their IDs are not in the provided list.
 
@@ -101,8 +110,8 @@ class OfficeRepository(BaseRepository[Office]):
 
         statement = (
             select(Office)
-            .where(Office.is_active == True)
-            .where(Office.id.not_in(active_ids))
+            .where(Office.is_active == true())
+            .where(col(Office.id).not_in(active_ids))
         )
         offices_to_deactivate = session.exec(statement).all()
 

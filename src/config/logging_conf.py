@@ -74,8 +74,8 @@ def get_logger(name: Optional[str] = None):
         # Get the calling module's name
         import inspect
 
-        frame = inspect.currentframe().f_back
-        name = frame.f_globals["__name__"]
+        frame = inspect.currentframe().f_back  # type: ignore[union-attr]
+        name = frame.f_globals["__name__"]  # type: ignore[union-attr]
 
     return logger.bind(name=name)
 
