@@ -6,7 +6,7 @@ synchronize exchange rate data.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +18,7 @@ from src.services.sync_service import (
     sync_exchange_data,
 )
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
+from src.utils.http_client import get_http_client
 
 
 # Sample exchange rate data for testing
@@ -71,8 +72,8 @@ def sample_exchange_data():
                                 "ccy": "USD",
                                 "buy": 2.65,
                                 "sell": 2.70,
-                                "timeFrom": datetime.utcnow(),
-                                "time": datetime.utcnow(),
+                                "timeFrom": datetime.now(tz=UTC),
+                                "time": datetime.now(tz=UTC),
                             }
                         },
                     }
@@ -115,13 +116,13 @@ def mock_repositories():
         office_repo_instance.find_one_by.return_value = None
 
         # Mock create to return objects with IDs
-        def create_org(session, obj_in):
+        def create_org(obj_in):
             return MagicMock(id=uuid.uuid4())
 
-        def create_office(session, obj_in):
+        def create_office(obj_in):
             return MagicMock(id=uuid.uuid4())
 
-        def create_rate(session, obj_in):
+        def create_rate(obj_in):
             rate = MagicMock()
             rate._is_new = True
             return rate
@@ -189,17 +190,20 @@ async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
 
 @pytest.mark.asyncio
 async def test_process_organizations_and_offices(
-    mock_session, mock_repositories, sample_exchange_data
+    mock_session, mock_repositories, sample_exchange_data, mock_api_connector
 ):
     """Test processing organizations and offices from exchange data."""
     # Unpack the mock repositories
     org_repo, office_repo, rate_repo = mock_repositories
 
     # Create a SyncService with the mock session
-    sync_service = SyncService(db_session=mock_session)
+
+    sync_service = SyncService(
+        db_session=mock_session, api_connector=mock_api_connector
+    )
 
     # Create an ExchangeResponse object from the sample data
-    exchange_data = ExchangeResponse.parse_obj(sample_exchange_data)
+    exchange_data = ExchangeResponse.model_validate(sample_exchange_data)
 
     # Call the _process_organizations_and_offices method
     stats = await sync_service._process_organizations_and_offices(exchange_data)
@@ -243,7 +247,7 @@ async def test_sync_exchange_data():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_real_api_call():
+async def test_real_api_call(db_session):
     """
     Test making a real API call to the MyFin API.
 
@@ -251,7 +255,9 @@ async def test_real_api_call():
     To run it, use: pytest -m integration
     """
     # Create a SyncService
-    sync_service = SyncService()
+    http_client = get_http_client()
+    myfin_api_connector = MyFinApiConnector(http_client_session=http_client.session)
+    sync_service = SyncService(db_session=db_session, api_connector=myfin_api_connector)
 
     try:
         # Fetch data from the API

@@ -1,47 +1,53 @@
 import uuid
 from sqlmodel import Field
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 from datetime import datetime
 
-from src.db.models import BaseModel
+
+class ExternalSchemaCustomModel(BaseModel):
+    model_config = ConfigDict(
+        extra="ignore",
+        str_strip_whitespace=True,
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
 
 
-class TopLevelRate(BaseModel):
+class TopLevelRate(ExternalSchemaCustomModel):
     ccy: str
     buy: float
     sell: float
     nbg: float
 
 
-class OrgRate(BaseModel):
+class OrgRate(ExternalSchemaCustomModel):
     ccy: str
     buy: float
     sell: float
 
 
-class OfficeRate(BaseModel):
+class OfficeRate(ExternalSchemaCustomModel):
     ccy: str
     buy: float
     sell: float
     time_from: datetime = Field(..., alias="timeFrom")
     time: datetime
 
-    class Config:
-        allow_population_by_field_name = True
 
-
-class LocalizedName(BaseModel):
-    en: str
-    ka: str
+class LocalizedName(ExternalSchemaCustomModel):
+    en: str | None = None
+    ka: str | None = None
     ru: str | None = None
 
 
-class ScheduleEntry(BaseModel):
+class ScheduleEntry(ExternalSchemaCustomModel):
     start: LocalizedName
     end: LocalizedName | None = None
     intervals: list[str]
 
 
-class Office(BaseModel):
+class Office(ExternalSchemaCustomModel):
     id: uuid.UUID
     name: LocalizedName
     address: LocalizedName
@@ -49,31 +55,25 @@ class Office(BaseModel):
     working_now: bool | None = False
     rates: dict[str, OfficeRate]
 
-    class Config:
-        allow_population_by_field_name = True
 
-
-class OfficeExtended(BaseModel):
+class OfficeExtended(ExternalSchemaCustomModel):
     id: uuid.UUID
-    organization_id: uuid.UUID = Field(..., alias="organizationId")
-    city_id: uuid.UUID = Field(..., alias="cityId")
+    organization_id: uuid.UUID
+    city_id: uuid.UUID
     city: LocalizedName
     longitude: float
     latitude: float
     name: LocalizedName
     address: LocalizedName
-    office_icon: str = Field(..., alias="officeIcon")
+    office_icon: str
     icon: str
     working_now: bool
-    working_24_7: bool = Field(..., alias="working_24_7")
+    working_24_7: bool
     schedule: list[ScheduleEntry]
     rates: dict[str, OfficeRate]
 
-    class Config:
-        allow_population_by_field_name = True
 
-
-class Organization(BaseModel):
+class Organization(ExternalSchemaCustomModel):
     id: uuid.UUID
     type: str
     link: str
@@ -83,11 +83,11 @@ class Organization(BaseModel):
     offices: list[Office]
 
 
-class ExchangeResponse(BaseModel):
+class ExchangeResponse(ExternalSchemaCustomModel):
     best: dict[str, TopLevelRate]
     organizations: list[Organization]
 
 
-class MapResponse(BaseModel):
+class MapResponse(ExternalSchemaCustomModel):
     best: dict[str, TopLevelRate]
     offices: list[OfficeExtended]

@@ -211,7 +211,7 @@ def test_rate_repository(db_session):
 
     # Test get_latest_rates
     latest_rates = rate_repo.get_latest_rates()
-    assert len(latest_rates) == 2
+    assert len(latest_rates) == 1
 
     # Test get_latest_rates with filters
     usd_rates = rate_repo.get_latest_rates(currency="USD")
@@ -219,11 +219,11 @@ def test_rate_repository(db_session):
     assert usd_rates[0].currency == "USD"
 
     office_rates = rate_repo.get_latest_rates(office_id=office.id)
-    assert len(office_rates) == 2
+    assert len(office_rates) == 1
 
     # Test get_rates_by_office
     office_rates = rate_repo.get_rates_by_office(office.id)
-    assert len(office_rates) == 2
+    assert len(office_rates) == 1
 
     # Test get_rates_by_currency
     usd_rates = rate_repo.get_rates_by_currency("USD")

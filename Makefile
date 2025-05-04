@@ -19,4 +19,4 @@ test_with_coverage:
     $(CMD) coverage xml
 
 test:
-	${CMD} pytest
+	${CMD} pytest -v

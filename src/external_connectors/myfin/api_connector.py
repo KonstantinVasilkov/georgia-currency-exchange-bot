@@ -46,7 +46,7 @@ class MyFinApiConnector(BaseRequester):
         city: str = "tbilisi",
         include_online: bool = True,
         availability: str = "All",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Fetch exchange rate data from the MyFin API.
 
