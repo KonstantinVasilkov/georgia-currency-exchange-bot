@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlmodel import select
 
 from src.db.models.schedule import Schedule
-from src.db.repositories.base_repository import BaseRepository
+from src.repositories.base_repository import BaseRepository
 
 
 class ScheduleRepository(BaseRepository):

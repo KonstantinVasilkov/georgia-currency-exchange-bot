@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 # Import all models so that SQLModel can find them
 from src.db.session import get_engine
 from src.config.settings import settings
+from src.db.models import Organization, Office, Rate, Schedule  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

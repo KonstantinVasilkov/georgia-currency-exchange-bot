@@ -12,10 +12,10 @@ from src.external_connectors.myfin.api_connector import MyFinApiConnector
 from src.external_connectors.myfin.schemas import ExchangeResponse, MapResponse
 from src.utils.http_client import get_http_client
 from src.db.session import get_session, get_db_session
-from src.db.repositories.organization_repository import OrganizationRepository
-from src.db.repositories.office_repository import OfficeRepository
-from src.db.repositories.rate_repository import RateRepository
-from src.db.repositories.schedule_repository import ScheduleRepository
+from src.repositories.organization_repository import OrganizationRepository
+from src.repositories.office_repository import OfficeRepository
+from src.repositories.rate_repository import RateRepository
+from src.repositories.schedule_repository import ScheduleRepository
 from src.utils.schedule_parser import parse_schedule
 from src.db.models.schedule import Schedule
 

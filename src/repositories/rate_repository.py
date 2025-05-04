@@ -10,7 +10,7 @@ from sqlmodel import Session, select, col
 from datetime import datetime, timedelta
 
 from src.db.models.rate import Rate
-from src.db.repositories.base_repository import BaseRepository
+from src.repositories.base_repository import BaseRepository
 
 
 class RateRepository(BaseRepository[Rate]):

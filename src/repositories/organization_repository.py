@@ -11,7 +11,7 @@ from sqlmodel import Session, select, col
 from datetime import datetime, UTC
 
 from src.db.models.organization import Organization
-from src.db.repositories.base_repository import BaseRepository
+from src.repositories.base_repository import BaseRepository
 
 
 class OrganizationRepository(BaseRepository[Organization]):

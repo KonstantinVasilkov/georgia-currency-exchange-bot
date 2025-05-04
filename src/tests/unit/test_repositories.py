@@ -6,7 +6,7 @@ This module contains tests for the repository classes, which are used to interac
 
 from datetime import datetime, timedelta, UTC
 
-from src.db.repositories import OfficeRepository, OrganizationRepository, RateRepository
+from src.repositories import OfficeRepository, OrganizationRepository, RateRepository
 
 
 def test_organization_repository(db_session):

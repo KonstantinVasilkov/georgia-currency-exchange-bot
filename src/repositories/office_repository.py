@@ -11,7 +11,7 @@ from sqlmodel import Session, select, col
 from datetime import datetime
 
 from src.db.models.office import Office
-from src.db.repositories.base_repository import BaseRepository
+from src.repositories.base_repository import BaseRepository
 
 
 class OfficeRepository(BaseRepository[Office]):
