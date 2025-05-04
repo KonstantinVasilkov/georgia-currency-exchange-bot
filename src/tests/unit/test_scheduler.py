@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 
-from src.scheduler.scheduler import Scheduler, log_scheduled_task, setup_scheduled_tasks
+from src.scheduler.scheduler import Scheduler, setup_scheduled_tasks
 
 
 @pytest.fixture
@@ -34,18 +34,6 @@ def scheduler_instance(mock_scheduler: MagicMock) -> Scheduler:
     """
     with patch("src.scheduler.scheduler.AsyncIOScheduler", return_value=mock_scheduler):
         return Scheduler()
-
-
-@pytest.mark.asyncio
-async def test_log_scheduled_task() -> None:
-    """Test that log_scheduled_task logs the current time."""
-    with patch("src.scheduler.scheduler.logger") as mock_logger:
-        await log_scheduled_task()
-        mock_logger.info.assert_called_once()
-        # Verify that the log message contains a timestamp
-        log_message = mock_logger.info.call_args[0][0]
-        assert isinstance(log_message, str)
-        assert "Scheduled task executed at" in log_message
 
 
 def test_scheduler_initialization(
@@ -118,13 +106,31 @@ def test_setup_scheduled_tasks(mock_scheduler: MagicMock) -> None:
     Args:
         mock_scheduler: A mock scheduler instance.
     """
-    with patch("src.scheduler.scheduler.scheduler.scheduler", mock_scheduler):
+    with (
+        patch("src.scheduler.scheduler.scheduler.scheduler", mock_scheduler),
+        patch("src.scheduler.scheduler.sync_exchange_data") as mock_sync,
+    ):
         setup_scheduled_tasks()
-        mock_scheduler.add_job.assert_called_once()
-        # Verify that the job was added with the correct function and trigger
-        call_args = mock_scheduler.add_job.call_args[0]
-        assert call_args[0] == log_scheduled_task
-        assert call_args[1] == "cron"
-        assert mock_scheduler.add_job.call_args[1]["minute"] == "*"
-        assert mock_scheduler.add_job.call_args[1]["id"] == "test_task"
-        assert mock_scheduler.add_job.call_args[1]["name"] == "Test Logging Task"
+
+        # Verify that add_job was called twice (hourly + startup)
+        assert mock_scheduler.add_job.call_count == 2
+
+        # Get all calls to add_job
+        calls = mock_scheduler.add_job.call_args_list
+
+        # Verify the hourly job
+        hourly_call = next(
+            call for call in calls if call[1].get("id") == "sync_exchange_data"
+        )
+        assert hourly_call[0][0] == mock_sync  # First positional arg is the function
+        assert hourly_call[0][1] == "interval"  # Second positional arg is trigger type
+        assert hourly_call[1]["hours"] == 1
+        assert hourly_call[1]["name"] == "Exchange Data Sync Task"
+
+        # Verify the startup job
+        startup_call = next(
+            call for call in calls if call[1].get("id") == "sync_exchange_data_startup"
+        )
+        assert startup_call[0][0] == mock_sync
+        assert startup_call[0][1] == "date"
+        assert startup_call[1]["name"] == "Exchange Data Sync Task (Startup)"

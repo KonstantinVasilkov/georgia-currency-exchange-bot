@@ -67,7 +67,7 @@ class OfficeExtended(ExternalSchemaCustomModel):
     address: LocalizedName
     office_icon: str
     icon: str
-    working_now: bool
+    working_now: bool | None = False
     working_24_7: bool
     schedule: list[ScheduleEntry]
     rates: dict[str, OfficeRate]

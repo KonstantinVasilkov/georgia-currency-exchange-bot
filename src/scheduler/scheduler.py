@@ -5,13 +5,13 @@ This module provides functionality for scheduling and managing background tasks
 using APScheduler.
 """
 
-from datetime import datetime, timezone
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
 from src.config.logging_conf import get_logger
+from src.services.sync_service import sync_exchange_data
 
 logger = get_logger(__name__)
 
@@ -60,24 +60,23 @@ class Scheduler:
 scheduler = Scheduler()
 
 
-async def log_scheduled_task() -> None:
-    """
-    A simple scheduled task that logs the current time.
-
-    This is used for testing the scheduler functionality.
-    """
-    current_time = datetime.now(timezone.utc)
-    logger.info(f"Scheduled task executed at {current_time.isoformat()}")
-
-
 def setup_scheduled_tasks() -> None:
     """Set up all scheduled tasks."""
-    # Add a test task that runs every minute
+    # Add sync task to run every hour
     scheduler.add_job(
-        log_scheduled_task,
-        trigger="cron",
-        minute="*",  # Run every minute
-        id="test_task",
-        name="Test Logging Task",
+        sync_exchange_data,
+        trigger="interval",
+        hours=1,  # Run every hour
+        id="sync_exchange_data",
+        name="Exchange Data Sync Task",
     )
+
+    # Also add a one-time task to run immediately on startup
+    scheduler.add_job(
+        sync_exchange_data,
+        trigger="date",  # Run once at a specific time (now)
+        id="sync_exchange_data_startup",
+        name="Exchange Data Sync Task (Startup)",
+    )
+
     logger.info("Scheduled tasks set up")

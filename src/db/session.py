@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from sqlmodel import SQLModel, create_engine, Session
 from src.config.settings import settings
 
@@ -26,6 +27,31 @@ def get_session():
     engine = get_engine()
     with Session(engine) as session:
         yield session
+
+
+@contextmanager
+def get_db_session():
+    """
+    Context manager for database sessions.
+    This function can be used with 'with' statements to ensure proper session handling.
+
+    Example:
+        with get_db_session() as session:
+            # Use session
+
+    Returns:
+        A database session that will be automatically closed after the with block.
+    """
+    engine = get_engine()
+    session = Session(engine)
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 # Function to create all tables defined in SQLModel models

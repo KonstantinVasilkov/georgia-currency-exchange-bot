@@ -10,7 +10,7 @@ from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
 from src.external_connectors.myfin.schemas import ExchangeResponse, MapResponse
 from src.utils.http_client import get_http_client
-from src.db.session import get_session
+from src.db.session import get_session, get_db_session
 from src.db.repositories.organization_repository import OrganizationRepository
 from src.db.repositories.office_repository import OfficeRepository
 from src.db.repositories.rate_repository import RateRepository
@@ -338,16 +338,19 @@ async def sync_exchange_data():
     logger.info("Starting exchange data synchronization")
 
     try:
-        # Create a SyncService instance
-        http_client = get_http_client()
-        myfin_api_connector = MyFinApiConnector(http_client_session=http_client.session)
-        db_session = get_session()
-        sync_service = SyncService(
-            db_session=db_session, api_connector=myfin_api_connector
-        )
+        with get_db_session() as db_session:
+            http_client = get_http_client()
+            myfin_api_connector = MyFinApiConnector(
+                http_client_session=http_client.session
+            )
+            sync_service = SyncService(
+                db_session=db_session, api_connector=myfin_api_connector
+            )
 
-        # Sync data from the MyFin API to the database
-        stats = await sync_service.sync_data()
+            # Sync data from the MyFin API to the database
+            stats = await sync_service.sync_data()
+
+            logger.info(f"Exchange data synchronization completed: {stats}")
 
         logger.info(f"Exchange data synchronization completed: {stats}")
     except Exception as e:
