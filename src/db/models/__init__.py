@@ -3,6 +3,5 @@ from src.db.models.office import Office
 from src.db.models.organization import Organization
 from src.db.models.rate import Rate
 
-__all__ = ["BaseModel", "Office", "Organization", "Rate", "OfficeSchedule"]
+__all__ = ["BaseModel", "Office", "Organization", "Rate"]
 
-from src.db.models.schedule import OfficeSchedule
