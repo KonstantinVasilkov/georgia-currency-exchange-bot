@@ -383,19 +383,78 @@ Let's refactor tests. Follow the rules:
 
 ## **Prompt for Step 3.2**
 
-```text
-**Objective**: Use `aiohttp` to fetch MyFin rates in `sync_exchange_data()`.
+[V]
+**Objective**: Create service to fetch MyFin rates and offices info and save it.
 
 **Instructions**:
-1. In `src/services/sync_service.py` creat a service class SyncService. It should 
-2. Inside `sync_exchange_data()`, open an `aiohttp.ClientSession`, make a GET request to your MyFin mock URL, and parse JSON.
-3. For demonstration, pretend the JSON has a structure with offices and rates. Store it in a local variable (no DB logic yet).
-4. Provide the updated file.
+1. In `src/services/sync_service.py` creat a service class SyncService. It should use /myfin/api_connector to retrieve data from the myfin API.
+2. To be able to correctly work with the myfin response we need to define response schemas:
+```python
+from pydantic import BaseModel, Field
 
-**Output Format**:
-- One code block for the updated `services/SyncService.py`.
-- You can show a sample JSON structure in a comment.
+
+class TopLevelRate(BaseModel):
+    ccy: str
+    buy: float
+    sell: float
+    nbg: float
+
+
+class OrgRate(BaseModel):
+    ccy: str
+    buy: float
+    sell: float
+
+
+class OfficeRate(BaseModel):
+    ccy: str
+    buy: float
+    sell: float
+    time_from: datetime = Field(..., alias="timeFrom")
+    time: datetime
+
+    class Config:
+        allow_population_by_field_name = True
+
+
+class LocalizedName(BaseModel):
+    en: str
+    ka: str
+    ru: Optional[str] = None
+
+
+class Office(BaseModel):
+    id: UUID
+    name: LocalizedName
+    address: LocalizedName
+    icon: Optional[str] = None
+    working_now: Optional[bool] = None
+    rates: Dict[str, OfficeRate]
+
+    class Config:
+        allow_population_by_field_name = True
+
+
+class Organization(BaseModel):
+    id: UUID
+    type: str
+    link: str
+    icon: Optional[str] = None
+    name: LocalizedName
+    best: Dict[str, OrgRate]
+    offices: List[Office]
+
+
+class ExchangeResponse(BaseModel):
+    best: Dict[str, TopLevelRate]
+    organizations: List[Organization]
 ```
+3. The sync service should parse the response and save the data to the appropriate DB table. 
+- All offices to be saved. The office list should be checked versus what we already have in the DB.
+- New office in the response - save it to the DB.
+- We have office in the DB but it absent in the response - mark office as inactive in the DB.
+4. Cover service with tests and check it versus real API call.
+
 
 ---
 

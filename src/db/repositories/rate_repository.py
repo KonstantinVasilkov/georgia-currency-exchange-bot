@@ -51,7 +51,9 @@ class RateRepository(BaseRepository[Rate]):
 
         return session.exec(statement).all()
 
-    def get_rates_by_office(self, session: Session, office_id: uuid.UUID) -> Sequence[Rate]:
+    def get_rates_by_office(
+        self, session: Session, office_id: uuid.UUID
+    ) -> Sequence[Rate]:
         """
         Get rates by office ID.
 
