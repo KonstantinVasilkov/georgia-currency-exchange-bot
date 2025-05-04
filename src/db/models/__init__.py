@@ -4,4 +4,3 @@ from src.db.models.organization import Organization
 from src.db.models.rate import Rate
 
 __all__ = ["BaseModel", "Office", "Organization", "Rate"]
-

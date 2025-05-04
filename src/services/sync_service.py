@@ -3,6 +3,7 @@ SyncService module for fetching and synchronizing exchange rate data.
 """
 
 import uuid
+from typing import List, Dict, Any
 
 from sqlmodel import Session
 
@@ -14,6 +15,9 @@ from src.db.session import get_session, get_db_session
 from src.db.repositories.organization_repository import OrganizationRepository
 from src.db.repositories.office_repository import OfficeRepository
 from src.db.repositories.rate_repository import RateRepository
+from src.db.repositories.schedule_repository import ScheduleRepository
+from src.utils.schedule_parser import parse_schedule
+from src.db.models.schedule import Schedule
 
 logger = get_logger(__name__)
 
@@ -40,6 +44,9 @@ class SyncService:
         self.organization_repo = OrganizationRepository(session=self.session)
         self.office_repo = OfficeRepository(session=self.session)
         self.rate_repo = RateRepository(session=self.session)
+        self.schedule_repo = ScheduleRepository(
+            session=self.session, model_class=Schedule
+        )
 
     async def fetch_exchange_data(
         self,
@@ -124,7 +131,7 @@ class SyncService:
 
     async def _process_map_data(self, map_data: MapResponse) -> dict[str, int]:
         """
-        Process office coordinates from the map data.
+        Process office coordinates and schedules from the map data.
 
         Args:
             map_data: The map data from the MyFin API.
@@ -134,6 +141,8 @@ class SyncService:
         """
         stats = {
             "offices_updated": 0,
+            "schedules_created": 0,
+            "schedules_updated": 0,
         }
 
         # Process each office
@@ -153,6 +162,37 @@ class SyncService:
                 # Update existing office
                 self.office_repo.update(db_obj=existing_office, obj_in=office_dict)
                 stats["offices_updated"] += 1
+
+                # Process schedules
+                if office_data.schedule:
+                    # Delete existing schedules
+                    self.schedule_repo.delete_by_office_id(existing_office.id)
+
+                    # Convert schedule entries to dictionaries
+                    schedule_dicts: List[Dict[str, Any]] = [
+                        {
+                            "start": entry.start.model_dump(),
+                            "end": entry.end.model_dump() if entry.end else None,
+                            "intervals": entry.intervals,
+                        }
+                        for entry in office_data.schedule
+                    ]
+
+                    # Parse and create new schedules
+                    parsed_schedules = parse_schedule(schedule_dicts)
+                    schedule_objects = [
+                        Schedule(
+                            day=schedule["day"],
+                            opens_at=schedule["opens_at"],
+                            closes_at=schedule["closes_at"],
+                            office_id=existing_office.id,
+                        )
+                        for schedule in parsed_schedules
+                    ]
+
+                    # Create new schedules
+                    self.schedule_repo.create_many(schedule_objects)
+                    stats["schedules_created"] += len(schedule_objects)
 
         return stats
 

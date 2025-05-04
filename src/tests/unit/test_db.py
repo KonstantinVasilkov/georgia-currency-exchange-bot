@@ -8,7 +8,7 @@ def test_db_connection(test_engine):
     """Test that we can connect to the database and create a session."""
     with Session(test_engine) as session:
         # Try to execute a simple query
-        result = session.execute(text("SELECT 1"))
+        result = session.exec(text("SELECT 1"))
         assert result.scalar() == 1
 
     # Verify we're using SQLite in-memory database

@@ -7,6 +7,7 @@ from src.schemas.office import OfficeBase
 if TYPE_CHECKING:
     from src.db.models.organization import Organization
     from src.db.models.rate import Rate
+    from src.db.models.schedule import Schedule
 
 
 class Office(OfficeBase, BaseModel, table=True):
@@ -17,3 +18,4 @@ class Office(OfficeBase, BaseModel, table=True):
     # Relationships
     organization: Optional["Organization"] = Relationship(back_populates="offices")
     rates: List["Rate"] = Relationship(back_populates="office")
+    schedules: List["Schedule"] = Relationship(back_populates="office")
