@@ -15,6 +15,7 @@ from sqlmodel import Session
 from src.services.sync_service import (
     SyncService,
     ExchangeResponse,
+    MapResponse,
     sync_exchange_data,
 )
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
@@ -84,10 +85,78 @@ def sample_exchange_data():
 
 
 @pytest.fixture
-def mock_api_connector(sample_exchange_data):
+def sample_map_data():
+    """Fixture providing sample map data for testing."""
+    return {
+        "best": {
+            "USD": {
+                "ccy": "USD",
+                "buy": 2.65,
+                "sell": 2.70,
+                "nbg": 2.68,
+            }
+        },
+        "offices": [
+            {
+                "id": str(uuid.uuid4()),
+                "organization_id": str(uuid.uuid4()),
+                "city_id": str(uuid.uuid4()),
+                "city": {
+                    "en": "Tbilisi",
+                    "ka": "თბილისი",
+                    "ru": "Тбилиси",
+                },
+                "longitude": 44.8271,
+                "latitude": 41.7151,
+                "name": {
+                    "en": "Test Office",
+                    "ka": "ტესტ ოფისი",
+                    "ru": "Тест Офис",
+                },
+                "address": {
+                    "en": "123 Test St",
+                    "ka": "ტესტის ქუჩა 123",
+                    "ru": "Тестовая улица 123",
+                },
+                "office_icon": "https://example.com/office-icon.png",
+                "icon": "https://example.com/icon.png",
+                "working_now": True,
+                "working_24_7": False,
+                "schedule": [
+                    {
+                        "start": {
+                            "en": "09:00",
+                            "ka": "09:00",
+                            "ru": "09:00",
+                        },
+                        "end": {
+                            "en": "18:00",
+                            "ka": "18:00",
+                            "ru": "18:00",
+                        },
+                        "intervals": ["09:00-18:00"],
+                    }
+                ],
+                "rates": {
+                    "USD": {
+                        "ccy": "USD",
+                        "buy": 2.65,
+                        "sell": 2.70,
+                        "timeFrom": datetime.now(tz=UTC),
+                        "time": datetime.now(tz=UTC),
+                    }
+                },
+            }
+        ],
+    }
+
+
+@pytest.fixture
+def mock_api_connector(sample_exchange_data, sample_map_data):
     """Fixture providing a mock MyFinApiConnector."""
     connector = AsyncMock(spec=MyFinApiConnector)
     connector.get_exchange_rates.return_value = sample_exchange_data
+    connector.get_office_coordinates.return_value = sample_map_data
     return connector
 
 
@@ -160,6 +229,55 @@ async def test_fetch_exchange_data(
 
 
 @pytest.mark.asyncio
+async def test_fetch_map_data(mock_api_connector, sample_map_data, db_session):
+    """Test fetching map data from the API."""
+    # Create a SyncService with the mock API connector
+    sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
+
+    # Call the fetch_map_data method
+    result = await sync_service.fetch_map_data()
+
+    # Verify the API connector was called with the expected parameters
+    mock_api_connector.get_office_coordinates.assert_called_once_with(
+        city="tbilisi", include_online=False, availability="All"
+    )
+
+    # Verify the result is a MapResponse object with the expected data
+    assert isinstance(result, MapResponse)
+    assert len(result.offices) == len(sample_map_data["offices"])
+    assert result.offices[0].name.en == sample_map_data["offices"][0]["name"]["en"]
+
+
+@pytest.mark.asyncio
+async def test_process_map_data(mock_session, mock_repositories, sample_map_data):
+    """Test processing map data to update office coordinates."""
+    # Unpack the mock repositories
+    org_repo, office_repo, rate_repo = mock_repositories
+
+    # Create a SyncService with the mock session
+    sync_service = SyncService(db_session=mock_session, api_connector=None)
+
+    # Create a MapResponse object from the sample data
+    map_data = MapResponse.model_validate(sample_map_data)
+
+    # Mock an existing office
+    existing_office = MagicMock()
+    office_repo.find_one_by.return_value = existing_office
+
+    # Call the _process_map_data method
+    stats = await sync_service._process_map_data(map_data)
+
+    # Verify the office repository was used to update the office
+    assert office_repo.update.call_count == 1
+    assert stats["offices_updated"] == 1
+
+    # Verify the update was called with the correct coordinates
+    update_call = office_repo.update.call_args[1]
+    assert update_call["obj_in"]["lat"] == sample_map_data["offices"][0]["latitude"]
+    assert update_call["obj_in"]["lng"] == sample_map_data["offices"][0]["longitude"]
+
+
+@pytest.mark.asyncio
 async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
     """Test synchronizing data from the API to the database."""
     # Unpack the mock repositories
@@ -173,8 +291,9 @@ async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
     # Call the sync_data method
     stats = await sync_service.sync_data()
 
-    # Verify the API connector was called
+    # Verify both API endpoints were called
     mock_api_connector.get_exchange_rates.assert_called_once()
+    mock_api_connector.get_office_coordinates.assert_called_once()
 
     # Verify the repositories were used to save data
     assert org_repo.create.call_count == 1
@@ -186,6 +305,7 @@ async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
     assert stats["organizations_created"] == 1
     assert stats["offices_created"] == 1
     assert stats["rates_created"] == 1
+    assert "offices_updated" in stats
 
 
 @pytest.mark.asyncio
@@ -197,7 +317,6 @@ async def test_process_organizations_and_offices(
     org_repo, office_repo, rate_repo = mock_repositories
 
     # Create a SyncService with the mock session
-
     sync_service = SyncService(
         db_session=mock_session, api_connector=mock_api_connector
     )
@@ -262,15 +381,21 @@ async def test_real_api_call(db_session):
     try:
         # Fetch data from the API
         exchange_data = await sync_service.fetch_exchange_data()
+        map_data = await sync_service.fetch_map_data()
 
         # Verify the response contains the expected data
         assert isinstance(exchange_data, ExchangeResponse)
         assert len(exchange_data.organizations) > 0
         assert len(exchange_data.best) > 0
 
+        assert isinstance(map_data, MapResponse)
+        assert len(map_data.offices) > 0
+        assert len(map_data.best) > 0
+
         # Print some information about the response
         print(f"Fetched {len(exchange_data.organizations)} organizations")
         print(f"Fetched {len(exchange_data.best)} best rates")
+        print(f"Fetched {len(map_data.offices)} offices with coordinates")
 
         # If we get here without an exception, the test passes
         assert True

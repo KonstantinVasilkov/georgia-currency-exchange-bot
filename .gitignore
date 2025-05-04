@@ -176,3 +176,7 @@ cython_debug/
 # SQLite
 *.db
 *.db.bak
+
+
+# logs
+/logs

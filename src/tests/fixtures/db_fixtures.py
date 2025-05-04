@@ -2,12 +2,12 @@
 Database fixtures for testing.
 """
 
-import asyncio
 import pytest
 from datetime import datetime, timezone
 from typing import Generator
 from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
+
 
 @pytest.fixture(scope="session")
 def engine():
@@ -18,6 +18,7 @@ def engine():
         poolclass=StaticPool,
     )
 
+
 @pytest.fixture(scope="function")
 def db_session(engine) -> Generator[Session, None, None]:
     """Create a fresh database session for each test."""
@@ -27,7 +28,8 @@ def db_session(engine) -> Generator[Session, None, None]:
         session.rollback()
         SQLModel.metadata.drop_all(engine)
 
+
 @pytest.fixture
 def sample_timestamp() -> datetime:
     """Provide a consistent timestamp for tests."""
-    return datetime.now(timezone.utc) 
+    return datetime.now(timezone.utc)

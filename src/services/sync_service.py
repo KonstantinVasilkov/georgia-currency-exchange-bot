@@ -8,7 +8,7 @@ from sqlmodel import Session
 
 from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
-from src.external_connectors.myfin.schemas import ExchangeResponse
+from src.external_connectors.myfin.schemas import ExchangeResponse, MapResponse
 from src.utils.http_client import get_http_client
 from src.db.session import get_session
 from src.db.repositories.organization_repository import OrganizationRepository
@@ -85,6 +85,77 @@ class SyncService:
             logger.error(f"Error fetching exchange data: {e}")
             raise
 
+    async def fetch_map_data(
+        self,
+        city: str = "tbilisi",
+        include_online: bool = False,
+        availability: str = "All",
+    ) -> MapResponse:
+        """
+        Fetch office coordinates data from the MyFin API.
+
+        Args:
+            city: The city for which to fetch coordinates. Default is "tbilisi".
+            include_online: Whether to include online exchange rates. Default is False.
+            availability: The availability filter. Default is "All".
+
+        Returns:
+            The office coordinates data as a MapResponse object.
+        """
+        logger.info(
+            f"Fetching map data for city: {city}, include_online: {include_online}, availability: {availability}"
+        )
+
+        try:
+            # Fetch data from the API
+            response_data = await self.api_connector.get_office_coordinates(
+                city=city, include_online=include_online, availability=availability
+            )
+
+            # Parse the response using the MapResponse schema
+            map_response = MapResponse.model_validate(response_data)
+            logger.info(
+                f"Successfully fetched map data: {len(map_response.offices)} offices"
+            )
+            return map_response
+        except Exception as e:
+            logger.error(f"Error fetching map data: {e}")
+            raise
+
+    async def _process_map_data(self, map_data: MapResponse) -> dict[str, int]:
+        """
+        Process office coordinates from the map data.
+
+        Args:
+            map_data: The map data from the MyFin API.
+
+        Returns:
+            A dictionary with statistics about the processing.
+        """
+        stats = {
+            "offices_updated": 0,
+        }
+
+        # Process each office
+        for office_data in map_data.offices:
+            # Find the office by external_ref_id
+            existing_office = self.office_repo.find_one_by(
+                external_ref_id=str(office_data.id)
+            )
+
+            if existing_office:
+                # Update office coordinates
+                office_dict = {
+                    "lat": office_data.latitude,
+                    "lng": office_data.longitude,
+                }
+
+                # Update existing office
+                self.office_repo.update(db_obj=existing_office, obj_in=office_dict)
+                stats["offices_updated"] += 1
+
+        return stats
+
     async def sync_data(
         self,
         city: str = "tbilisi",
@@ -112,13 +183,24 @@ class SyncService:
             session_created = True
 
         try:
-            # Fetch data from the API
+            # Fetch exchange rate data from the API
             exchange_data = await self.fetch_exchange_data(
                 city=city, include_online=include_online, availability=availability
             )
 
             # Process organizations and offices
             stats = await self._process_organizations_and_offices(exchange_data)
+
+            # Fetch map data from the API
+            map_data = await self.fetch_map_data(
+                city=city, include_online=include_online, availability=availability
+            )
+
+            # Process map data to update office coordinates
+            map_stats = await self._process_map_data(map_data)
+
+            # Combine stats
+            stats.update(map_stats)
 
             logger.info(f"Data synchronization completed: {stats}")
             return stats

@@ -1,6 +1,5 @@
 """Test database connection and configuration."""
 
-import pytest
 from sqlmodel import Session
 from sqlalchemy import text
 from src.config.settings import settings
