@@ -496,10 +496,10 @@ class ExchangeResponse(BaseModel):
 ## **Prompt for Step 3.5**
 
 ```text
-**Objective**: Implement cleanup logic for rates older than 3 hours.
+**Objective**: Implement GoogleMaps API connector.
 
 **Instructions**:
-1. After inserting new rates, query for any `Rate` with a `timestamp` older than `now - 3 hours`.
+1. In the /src/external_connectors/google_maps/api.py implement GoogleMaps API connector. It should be 
 2. Decide whether to delete them or mark them as inactive (the spec says “discard,” so we can delete).
 3. Provide the code snippet in `sync_exchange_data()`.
 
@@ -512,10 +512,12 @@ class ExchangeResponse(BaseModel):
 ## **Prompt for Step 4.1**
 
 ```text
-**Objective**: Create `services/GeolocationService.py` with a function to geocode addresses.
+**Objective**: Create `services/geo_location_service.py` with a function to geocode addresses.
 
 **Instructions**:
-1. Implement `async def geocode_address(address: str) -> tuple[float, float]`.
+1. Implement GeoLocationService. 
+2. Main features of GeoLocationService
+Implement `async def geocode_address(address: str) -> tuple[float, float]`.
 2. You can mock the API call or show a placeholder for actual Google Geocoding usage.
 3. If the geocoding fails, log to Sentry (or a placeholder function) and return `(None, None)`.
 

@@ -22,7 +22,7 @@ async def test_api_connector():
 
     try:
         # Create an instance of the MyFinApiConnector with the HTTP client's session
-        connector = MyFinApiConnector(session=http_client.session)
+        connector = MyFinApiConnector(http_client_session=http_client.session)
 
         # Log the base URL
         logger.info(f"Using base URL: {connector.base_url}")

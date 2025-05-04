@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from sqlmodel import Relationship
 
 from src.db.models.base import BaseModel
-from src.db.schemas.rate import RateBase
+from src.schemas.rate import RateBase
 
 if TYPE_CHECKING:
     from src.db.models.office import Office

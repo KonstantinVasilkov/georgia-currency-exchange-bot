@@ -2,15 +2,13 @@
 SyncService module for fetching and synchronizing exchange rate data.
 """
 
-from typing import Dict, List, Optional, Set
-from datetime import datetime
 import uuid
 
-from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
+from src.external_connectors.myfin.schemas import ExchangeResponse
 from src.utils.http_client import get_http_client
 from src.db.session import get_session
 from src.db.repositories.organization_repository import OrganizationRepository
@@ -20,63 +18,6 @@ from src.db.repositories.rate_repository import RateRepository
 logger = get_logger(__name__)
 
 
-class TopLevelRate(BaseModel):
-    ccy: str
-    buy: float
-    sell: float
-    nbg: float
-
-
-class OrgRate(BaseModel):
-    ccy: str
-    buy: float
-    sell: float
-
-
-class OfficeRate(BaseModel):
-    ccy: str
-    buy: float
-    sell: float
-    time_from: datetime = Field(..., alias="timeFrom")
-    time: datetime
-
-    class Config:
-        allow_population_by_field_name = True
-
-
-class LocalizedName(BaseModel):
-    en: str
-    ka: str
-    ru: Optional[str] = None
-
-
-class Office(BaseModel):
-    id: uuid.UUID
-    name: LocalizedName
-    address: LocalizedName
-    icon: Optional[str] = None
-    working_now: Optional[bool] = None
-    rates: Dict[str, OfficeRate]
-
-    class Config:
-        allow_population_by_field_name = True
-
-
-class Organization(BaseModel):
-    id: uuid.UUID
-    type: str
-    link: str
-    icon: Optional[str] = None
-    name: LocalizedName
-    best: Dict[str, OrgRate]
-    offices: List[Office]
-
-
-class ExchangeResponse(BaseModel):
-    best: Dict[str, TopLevelRate]
-    organizations: List[Organization]
-
-
 class SyncService:
     """
     Service for synchronizing exchange rate data from MyFin API to the database.
@@ -84,21 +25,21 @@ class SyncService:
 
     def __init__(
         self,
-        session: Optional[Session] = None,
-        api_connector: Optional[MyFinApiConnector] = None,
+        db_session: Session,
+        api_connector: MyFinApiConnector,
     ):
         """
         Initialize the SyncService.
 
         Args:
-            session: The database session. If not provided, a new session will be created.
+            db_session: The database session. If not provided, a new session will be created.
             api_connector: The MyFin API connector. If not provided, a new connector will be created.
         """
-        self.session = session
+        self.session = db_session
         self.api_connector = api_connector
-        self.organization_repo = OrganizationRepository()
-        self.office_repo = OfficeRepository()
-        self.rate_repo = RateRepository()
+        self.organization_repo = OrganizationRepository(session=self.session)
+        self.office_repo = OfficeRepository(session=self.session)
+        self.rate_repo = RateRepository(session=self.session)
 
     async def fetch_exchange_data(
         self,
@@ -124,7 +65,9 @@ class SyncService:
         # Create API connector if not provided
         if self.api_connector is None:
             http_client = get_http_client()
-            self.api_connector = MyFinApiConnector(session=http_client.session)
+            self.api_connector = MyFinApiConnector(
+                http_client_session=http_client.session
+            )
 
         try:
             # Fetch data from the API
@@ -147,7 +90,7 @@ class SyncService:
         city: str = "tbilisi",
         include_online: bool = True,
         availability: str = "All",
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Synchronize exchange rate data from the MyFin API to the database.
 
@@ -189,7 +132,7 @@ class SyncService:
 
     async def _process_organizations_and_offices(
         self, exchange_data: ExchangeResponse
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Process organizations and offices from the exchange data.
 
@@ -210,8 +153,8 @@ class SyncService:
         }
 
         # Keep track of active organization and office IDs
-        active_org_ids: Set[uuid.UUID] = set()
-        active_office_ids: Set[uuid.UUID] = set()
+        active_org_ids: set[uuid.UUID] = set()
+        active_office_ids: set[uuid.UUID] = set()
 
         # Process each organization
         for org_data in exchange_data.organizations:
@@ -225,18 +168,18 @@ class SyncService:
 
             # Check if organization exists by external_ref_id
             existing_org = self.organization_repo.find_one_by(
-                self.session, external_ref_id=str(org_data.id)
+                external_ref_id=str(org_data.id)
             )
 
             if existing_org:
                 # Update existing organization
                 org = self.organization_repo.update(
-                    self.session, db_obj=existing_org, obj_in=org_dict
+                    db_obj=existing_org, obj_in=org_dict
                 )
                 stats["organizations_updated"] += 1
             else:
                 # Create new organization
-                org = self.organization_repo.create(self.session, obj_in=org_dict)
+                org = self.organization_repo.create(obj_in=org_dict)
                 stats["organizations_created"] += 1
 
             # Add to active organization IDs
@@ -256,18 +199,18 @@ class SyncService:
 
                 # Check if office exists by external_ref_id
                 existing_office = self.office_repo.find_one_by(
-                    self.session, external_ref_id=str(office_data.id)
+                    external_ref_id=str(office_data.id)
                 )
 
                 if existing_office:
                     # Update existing office
                     office = self.office_repo.update(
-                        self.session, db_obj=existing_office, obj_in=office_dict
+                        db_obj=existing_office, obj_in=office_dict
                     )
                     stats["offices_updated"] += 1
                 else:
                     # Create new office
-                    office = self.office_repo.create(self.session, obj_in=office_dict)
+                    office = self.office_repo.create(obj_in=office_dict)
                     stats["offices_created"] += 1
 
                 # Add to active office IDs
@@ -285,7 +228,7 @@ class SyncService:
                     }
 
                     # Upsert rate
-                    rate = self.rate_repo.upsert(self.session, rate_dict)
+                    rate = self.rate_repo.upsert(rate_dict)
                     if hasattr(rate, "_is_new") and rate._is_new:
                         stats["rates_created"] += 1
                     else:
@@ -293,15 +236,11 @@ class SyncService:
 
         # Mark inactive organizations and offices
         if active_org_ids:
-            self.organization_repo.mark_inactive_if_not_in_list(
-                self.session, list(active_org_ids)
-            )
+            self.organization_repo.mark_inactive_if_not_in_list(list(active_org_ids))
 
         if active_office_ids:
             stats["offices_deactivated"] = (
-                self.office_repo.mark_inactive_if_not_in_list(
-                    self.session, list(active_office_ids)
-                )
+                self.office_repo.mark_inactive_if_not_in_list(list(active_office_ids))
             )
 
         return stats
@@ -318,7 +257,12 @@ async def sync_exchange_data():
 
     try:
         # Create a SyncService instance
-        sync_service = SyncService()
+        http_client = get_http_client()
+        myfin_api_connector = MyFinApiConnector(http_client_session=http_client.session)
+        db_session = get_session()
+        sync_service = SyncService(
+            db_session=db_session, api_connector=myfin_api_connector
+        )
 
         # Sync data from the MyFin API to the database
         stats = await sync_service.sync_data()

@@ -8,6 +8,7 @@ class OfficeBase(SQLModel):
     Base schema for Office model.
     """
 
+    external_ref_id: Optional[str] = None
     name: str = Field(index=True)
     address: str
     lat: float  # Latitude coordinate
@@ -15,4 +16,3 @@ class OfficeBase(SQLModel):
     organization_id: Optional[uuid.UUID] = Field(
         default=None, foreign_key="organization.id"
     )
-    external_ref_id: Optional[str] = None

@@ -4,19 +4,18 @@ API connector for the MyFin API.
 This module provides a connector for the MyFin API, which is used to fetch exchange rate data.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 import aiohttp
 
 from src.config.settings import settings
 from src.config.logging_conf import get_logger
 from src.utils.base_requester import BaseRequester
-from src.utils.http_client import get_http_client
 
 logger = get_logger(__name__)
 
 
-class MyFinApiConnector:
+class MyFinApiConnector(BaseRequester):
     """
     Connector for the MyFin API.
 
@@ -28,22 +27,19 @@ class MyFinApiConnector:
         session (aiohttp.ClientSession): The aiohttp session to use for requests.
     """
 
-    def __init__(
-        self,
-        session: Optional[aiohttp.ClientSession] = None,
-        base_url: Optional[str] = None,
-    ):
+    def __init__(self, http_client_session: aiohttp.ClientSession):
         """
         Initialize the MyFin API connector.
 
         Args:
-            session: The aiohttp session to use for requests. If not provided, the global
-                    HTTP client's session will be used.
-            base_url: The base URL for the MyFin API. If not provided, the value from settings is used.
+            http_client_session: The aiohttp session to use for requests.
         """
-        self.base_url = base_url or settings.MYFIN_API_BASE_URL
-        self.session = session or get_http_client().session
-        logger.debug(f"Initialized MyFinApiConnector with base URL: {self.base_url}")
+        logger.debug(
+            f"Initialized MyFinApiConnector with base URL: {settings.MYFIN_API_BASE_URL}"
+        )
+        super().__init__(
+            session=http_client_session, base_url=settings.MYFIN_API_BASE_URL
+        )
 
     async def get_exchange_rates(
         self,
@@ -76,13 +72,10 @@ class MyFinApiConnector:
             "availability": availability,
         }
 
-        # Create a requester with the injected session
-        requester = BaseRequester(self.session, base_url=self.base_url)
-
         # Make the request
         try:
-            response = await requester.post(
-                "/exchangeRates",
+            response = await self.post(
+                endpoint="/exchangeRates",
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
@@ -93,4 +86,43 @@ class MyFinApiConnector:
             return response
         except Exception as e:
             logger.error(f"Failed to fetch exchange rates: {e}")
+            raise
+
+    async def get_office_coordinates(
+        self,
+        city: str = "tbilisi",
+        include_online: bool = False,
+        availability: str = "All",
+    ) -> Dict[str, Any]:
+        """
+        Fetch office coordinates from the MyFin API.
+
+        Args:
+            office_id: The ID of the office for which to fetch coordinates.
+
+        Returns:
+            The office coordinates as a dictionary.
+
+        Raises:
+            Exception: If the API request fails.
+        """
+        payload = {
+            "city": city,
+            "includeOnline": include_online,
+            "availability": availability,
+        }
+        # Make the request
+        try:
+            response = await self.post(
+                endpoint="/exchangeRates/map",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+
+            logger.info("Successfully fetched exchange rates")
+            logger.debug(f"Offices response: {response}")
+
+            return response
+        except Exception as e:
+            logger.error(f"Failed to fetch offices: {e}")
             raise

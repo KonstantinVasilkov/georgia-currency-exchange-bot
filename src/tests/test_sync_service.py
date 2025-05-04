@@ -134,10 +134,12 @@ def mock_repositories():
 
 
 @pytest.mark.asyncio
-async def test_fetch_exchange_data(mock_api_connector, sample_exchange_data):
+async def test_fetch_exchange_data(
+    mock_api_connector, sample_exchange_data, db_session
+):
     """Test fetching exchange data from the API."""
     # Create a SyncService with the mock API connector
-    sync_service = SyncService(api_connector=mock_api_connector)
+    sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
 
     # Call the fetch_exchange_data method
     result = await sync_service.fetch_exchange_data()
@@ -163,7 +165,9 @@ async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
     org_repo, office_repo, rate_repo = mock_repositories
 
     # Create a SyncService with the mock API connector and session
-    sync_service = SyncService(session=mock_session, api_connector=mock_api_connector)
+    sync_service = SyncService(
+        db_session=mock_session, api_connector=mock_api_connector
+    )
 
     # Call the sync_data method
     stats = await sync_service.sync_data()
@@ -192,7 +196,7 @@ async def test_process_organizations_and_offices(
     org_repo, office_repo, rate_repo = mock_repositories
 
     # Create a SyncService with the mock session
-    sync_service = SyncService(session=mock_session)
+    sync_service = SyncService(db_session=mock_session)
 
     # Create an ExchangeResponse object from the sample data
     exchange_data = ExchangeResponse.parse_obj(sample_exchange_data)

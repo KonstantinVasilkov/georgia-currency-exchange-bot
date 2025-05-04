@@ -20,13 +20,12 @@ class RateRepository(BaseRepository[Rate]):
     This class extends the BaseRepository to provide specific operations for the Rate model.
     """
 
-    def __init__(self):
+    def __init__(self, session: Session):
         """Initialize the repository with the Rate model."""
-        super().__init__(Rate)
+        super().__init__(model_class=Rate, session=session)
 
     def get_latest_rates(
         self,
-        session: Session,
         office_id: Optional[uuid.UUID] = None,
         currency: Optional[str] = None,
     ) -> Sequence[Rate]:
@@ -34,7 +33,6 @@ class RateRepository(BaseRepository[Rate]):
         Get the latest rates.
 
         Args:
-            session: The database session.
             office_id: Optional filter by office ID.
             currency: Optional filter by currency.
 
@@ -49,16 +47,13 @@ class RateRepository(BaseRepository[Rate]):
         if currency:
             statement = statement.where(Rate.currency == currency)
 
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def get_rates_by_office(
-        self, session: Session, office_id: uuid.UUID
-    ) -> Sequence[Rate]:
+    def get_rates_by_office(self, office_id: uuid.UUID) -> Sequence[Rate]:
         """
         Get rates by office ID.
 
         Args:
-            session: The database session.
             office_id: The ID of the office.
 
         Returns:
@@ -69,14 +64,13 @@ class RateRepository(BaseRepository[Rate]):
             .where(Rate.office_id == office_id)
             .order_by(col(Rate.timestamp).desc())
         )
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def get_rates_by_currency(self, session: Session, currency: str) -> Sequence[Rate]:
+    def get_rates_by_currency(self, currency: str) -> Sequence[Rate]:
         """
         Get rates by currency.
 
         Args:
-            session: The database session.
             currency: The currency code.
 
         Returns:
@@ -87,16 +81,13 @@ class RateRepository(BaseRepository[Rate]):
             .where(Rate.currency == currency)
             .order_by(col(Rate.timestamp).desc())
         )
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def get_best_rates(
-        self, session: Session, currency: str, buy: bool = True
-    ) -> Sequence[Rate]:
+    def get_best_rates(self, currency: str, buy: bool = True) -> Sequence[Rate]:
         """
         Get the best rates for a currency.
 
         Args:
-            session: The database session.
             currency: The currency code.
             buy: If True, get the best buy rates (lowest). If False, get the best sell rates (highest).
 
@@ -112,14 +103,13 @@ class RateRepository(BaseRepository[Rate]):
             # For sell rates, higher is better
             statement = statement.order_by(col(Rate.sell_rate).desc())
 
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def delete_old_rates(self, session: Session, hours: int = 3) -> int:
+    def delete_old_rates(self, hours: int = 3) -> int:
         """
         Delete rates older than the specified number of hours.
 
         Args:
-            session: The database session.
             hours: The number of hours to consider a rate as old.
 
         Returns:
@@ -127,20 +117,19 @@ class RateRepository(BaseRepository[Rate]):
         """
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
         statement = select(Rate).where(Rate.timestamp < cutoff_time)
-        old_rates = session.exec(statement).all()
+        old_rates = self.session.exec(statement).all()
 
         for rate in old_rates:
-            session.delete(rate)
+            self.session.delete(rate)
 
-        session.commit()
+        self.session.commit()
         return len(old_rates)
 
-    def upsert(self, session: Session, rate_data: dict) -> Rate:
+    def upsert(self, rate_data: dict) -> Rate:
         """
         Create or update a rate.
 
         Args:
-            session: The database session.
             rate_data: The rate data.
 
         Returns:
@@ -148,14 +137,13 @@ class RateRepository(BaseRepository[Rate]):
         """
         # Check if the rate exists by office_id and currency
         existing_rate = self.find_one_by(
-            session,
             office_id=rate_data.get("office_id"),
             currency=rate_data.get("currency"),
         )
 
         if existing_rate:
             # Update existing rate
-            return self.update(session, db_obj=existing_rate, obj_in=rate_data)
+            return self.update(db_obj=existing_rate, obj_in=rate_data)
         else:
             # Create new rate
-            return self.create(session, obj_in=rate_data)
+            return self.create(obj_in=rate_data)

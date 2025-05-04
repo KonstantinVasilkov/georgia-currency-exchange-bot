@@ -23,7 +23,7 @@ class BaseRepository(Generic[T]):
         model_class: The SQLModel class that this repository operates on.
     """
 
-    def __init__(self, model_class: Type[T]):
+    def __init__(self, model_class: Type[T], session: Session):
         """
         Initialize the repository with a model class.
 
@@ -31,13 +31,13 @@ class BaseRepository(Generic[T]):
             model_class: The SQLModel class that this repository operates on.
         """
         self.model_class = model_class
+        self.session = session
 
-    def create(self, session: Session, obj_in: Union[Dict[str, Any], T]) -> T:
+    def create(self, obj_in: Union[Dict[str, Any], T]) -> T:
         """
         Create a new record in the database.
 
         Args:
-            session: The database session.
             obj_in: The data to create the record with. Can be a dict or a model instance.
 
         Returns:
@@ -49,49 +49,42 @@ class BaseRepository(Generic[T]):
         else:
             db_obj = obj_in
 
-        session.add(db_obj)
-        session.commit()
-        session.refresh(db_obj)
+        self.session.add(db_obj)
+        self.session.commit()
+        self.session.refresh(db_obj)
         return db_obj
 
-    def get(self, session: Session, id: Any) -> Optional[T]:
+    def get(self, id: Any) -> Optional[T]:
         """
         Get a record by ID.
 
         Args:
-            session: The database session.
             id: The ID of the record to get.
 
         Returns:
             The record if found, None otherwise.
         """
-        return session.get(self.model_class, id)
+        return self.session.get(self.model_class, id)
 
-    def get_multi(
-        self, session: Session, *, skip: int = 0, limit: int = 100
-    ) -> Sequence[T]:
+    def get_multi(self, *, offset: int = 0, limit: int = 100) -> Sequence[T]:
         """
         Get multiple records.
 
         Args:
-            session: The database session.
-            skip: The number of records to skip.
+            offset: The number of records to skip.
             limit: The maximum number of records to return.
 
         Returns:
             A list of records.
         """
-        statement = select(self.model_class).offset(skip).limit(limit)
-        return session.exec(statement).all()
+        statement = select(self.model_class).offset(offset).limit(limit)
+        return self.session.exec(statement).all()
 
-    def update(
-        self, session: Session, *, db_obj: T, obj_in: Union[Dict[str, Any], T]
-    ) -> T:
+    def update(self, *, db_obj: T, obj_in: Union[Dict[str, Any], T]) -> T:
         """
         Update a record.
 
         Args:
-            session: The database session.
             db_obj: The record to update.
             obj_in: The data to update the record with. Can be a dict or a model instance.
 
@@ -107,34 +100,32 @@ class BaseRepository(Generic[T]):
             if hasattr(db_obj, field):
                 setattr(db_obj, field, update_data[field])
 
-        session.add(db_obj)
-        session.commit()
-        session.refresh(db_obj)
+        self.session.add(db_obj)
+        self.session.commit()
+        self.session.refresh(db_obj)
         return db_obj
 
-    def delete(self, session: Session, *, id: Any) -> Optional[T]:
+    def delete(self, *, id: Any) -> Optional[T]:
         """
         Delete a record by ID.
 
         Args:
-            session: The database session.
             id: The ID of the record to delete.
 
         Returns:
             The deleted record if found, None otherwise.
         """
-        obj = session.get(self.model_class, id)
+        obj = self.session.get(self.model_class, id)
         if obj:
-            session.delete(obj)
-            session.commit()
+            self.session.delete(obj)
+            self.session.commit()
         return obj
 
-    def exists(self, session: Session, **kwargs) -> bool:
+    def exists(self, **kwargs) -> bool:
         """
         Check if a record exists with the given criteria.
 
         Args:
-            session: The database session.
             **kwargs: The criteria to check for.
 
         Returns:
@@ -145,15 +136,14 @@ class BaseRepository(Generic[T]):
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
 
-        result = session.exec(statement).first()
+        result = self.session.exec(statement).first()
         return result is not None
 
-    def find_by(self, session: Session, **kwargs) -> Sequence[T]:
+    def find_by(self, **kwargs) -> Sequence[T]:
         """
         Find records by criteria.
 
         Args:
-            session: The database session.
             **kwargs: The criteria to search for.
 
         Returns:
@@ -164,14 +154,13 @@ class BaseRepository(Generic[T]):
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
 
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def find_one_by(self, session: Session, **kwargs) -> Optional[T]:
+    def find_one_by(self, **kwargs) -> Optional[T]:
         """
         Find a single record by criteria.
 
         Args:
-            session: The database session.
             **kwargs: The criteria to search for.
 
         Returns:
@@ -182,4 +171,4 @@ class BaseRepository(Generic[T]):
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
 
-        return session.exec(statement).first()
+        return self.session.exec(statement).first()

@@ -21,18 +21,15 @@ class OfficeRepository(BaseRepository[Office]):
     This class extends the BaseRepository to provide specific operations for the Office model.
     """
 
-    def __init__(self):
+    def __init__(self, session: Session):
         """Initialize the repository with the Office model."""
-        super().__init__(Office)
+        super().__init__(model_class=Office, session=session)
 
-    def get_active_offices(
-        self, session: Session, skip: int = 0, limit: int = 100
-    ) -> Sequence[Office]:
+    def get_active_offices(self, skip: int = 0, limit: int = 100) -> Sequence[Office]:
         """
         Get active offices.
 
         Args:
-            session: The database session.
             skip: The number of records to skip.
             limit: The maximum number of records to return.
 
@@ -42,26 +39,23 @@ class OfficeRepository(BaseRepository[Office]):
         statement = (
             select(Office).where(Office.is_active == true()).offset(skip).limit(limit)
         )
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def get_by_organization(
-        self, session: Session, organization_id: uuid.UUID
-    ) -> Sequence[Office]:
+    def get_by_organization(self, organization_id: uuid.UUID) -> Sequence[Office]:
         """
         Get offices by organization ID.
 
         Args:
-            session: The database session.
             organization_id: The ID of the organization.
 
         Returns:
             A list of offices belonging to the organization.
         """
         statement = select(Office).where(Office.organization_id == organization_id)
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
     def get_by_coordinates(
-        self, session: Session, lat: float, lng: float, radius: float = 1.0
+        self, lat: float, lng: float, radius: float = 1.0
     ) -> Sequence[Office]:
         """
         Get offices near the specified coordinates.
@@ -70,7 +64,6 @@ class OfficeRepository(BaseRepository[Office]):
         For more accurate distance calculations, a more complex formula would be needed.
 
         Args:
-            session: The database session.
             lat: The latitude coordinate.
             lng: The longitude coordinate.
             radius: The radius in kilometers.
@@ -90,16 +83,13 @@ class OfficeRepository(BaseRepository[Office]):
             .where(Office.lng >= lng - degree_radius)
             .where(Office.lng <= lng + degree_radius)
         )
-        return session.exec(statement).all()
+        return self.session.exec(statement).all()
 
-    def mark_inactive_if_not_in_list(
-        self, session: Session, active_ids: List[uuid.UUID]
-    ) -> int:
+    def mark_inactive_if_not_in_list(self, active_ids: List[uuid.UUID]) -> int:
         """
         Mark offices as inactive if their IDs are not in the provided list.
 
         Args:
-            session: The database session.
             active_ids: List of IDs that should remain active.
 
         Returns:
@@ -113,22 +103,21 @@ class OfficeRepository(BaseRepository[Office]):
             .where(Office.is_active == true())
             .where(col(Office.id).not_in(active_ids))
         )
-        offices_to_deactivate = session.exec(statement).all()
+        offices_to_deactivate = self.session.exec(statement).all()
 
         for office in offices_to_deactivate:
             office.is_active = False
             office.updated_at = datetime.utcnow()
-            session.add(office)
+            self.session.add(office)
 
-        session.commit()
+        self.session.commit()
         return len(offices_to_deactivate)
 
-    def upsert(self, session: Session, office_data: dict) -> Office:
+    def upsert(self, office_data: dict) -> Office:
         """
         Create or update an office.
 
         Args:
-            session: The database session.
             office_data: The office data.
 
         Returns:
@@ -136,7 +125,6 @@ class OfficeRepository(BaseRepository[Office]):
         """
         # Check if the office exists by name and organization_id
         existing_office = self.find_one_by(
-            session,
             name=office_data.get("name"),
             organization_id=office_data.get("organization_id"),
         )
@@ -144,7 +132,7 @@ class OfficeRepository(BaseRepository[Office]):
         if existing_office:
             # Update existing office
             office_data["updated_at"] = datetime.utcnow()
-            return self.update(session, db_obj=existing_office, obj_in=office_data)
+            return self.update(db_obj=existing_office, obj_in=office_data)
         else:
             # Create new office
-            return self.create(session, obj_in=office_data)
+            return self.create(obj_in=office_data)
