@@ -563,10 +563,10 @@ Implement `async def geocode_address(address: str) -> tuple[float, float]`.
 ## **Prompt for Step 5.1**
 
 ```text
-**Objective**: Update `main.py` to instantiate an `aiogram` bot and run it.
+**Objective**: Create entrypoint to instantiate an `aiogram` bot and run it.
 
 **Instructions**:
-1. Install `aiogram==3.*` if not done.
+1. Create entrypoint file. 
 2. Import `Bot`, `Dispatcher` from `aiogram`.
 3. Create a `Bot` instance with a placeholder token (e.g., `"123:ABC"`).
 4. Create a `Dispatcher`.
