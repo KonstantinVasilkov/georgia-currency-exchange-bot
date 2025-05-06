@@ -3,7 +3,7 @@ from pathlib import Path
 from sys import modules
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 class Settings(BaseSettings):
     DEBUG: bool = os.environ.get("DEBUG", False)
     ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "DEV")
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
         "MYFIN_API_BASE_URL", "https://myfin.ge/api/"
     )
 
-    PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
+    
     LOG_DIR: Path = PROJECT_ROOT / "logs"
     LOG_FILE: Path = LOG_DIR / "app.log"
     LOG_FORMAT: str = os.environ.get(
