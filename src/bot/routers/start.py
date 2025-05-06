@@ -31,6 +31,7 @@ async def handle_start(message: Message) -> None:
         reply_markup=get_main_menu_keyboard(),
     )
 
+
 async def cmd_start(message: Message) -> None:
     """Compatibility handler for tests expecting cmd_start. Returns the expected welcome/help text."""
     await message.answer(
