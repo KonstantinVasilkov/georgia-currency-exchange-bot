@@ -5,19 +5,20 @@ SyncService module for fetching and synchronizing exchange rate data.
 import uuid
 from typing import List, Dict, Any
 
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
 from src.external_connectors.myfin.schemas import ExchangeResponse, MapResponse
 from src.utils.http_client import get_http_client
 from src.db.session import get_session, get_db_session
-from src.repositories.organization_repository import OrganizationRepository
-from src.repositories.office_repository import OfficeRepository
-from src.repositories.rate_repository import RateRepository
-from src.repositories.schedule_repository import ScheduleRepository
+from src.repositories.organization_repository import AsyncOrganizationRepository
+from src.repositories.office_repository import AsyncOfficeRepository
+from src.repositories.rate_repository import AsyncRateRepository
+from src.repositories.schedule_repository import AsyncScheduleRepository
 from src.utils.schedule_parser import parse_schedule
 from src.db.models.schedule import Schedule
+from src.db.models.rate import Rate
 
 logger = get_logger(__name__)
 
@@ -29,22 +30,22 @@ class SyncService:
 
     def __init__(
         self,
-        db_session: Session,
+        db_session: AsyncSession,
         api_connector: MyFinApiConnector,
     ):
         """
         Initialize the SyncService.
 
         Args:
-            db_session: The database session. If not provided, a new session will be created.
+            db_session: The async database session. If not provided, a new session will be created.
             api_connector: The MyFin API connector. If not provided, a new connector will be created.
         """
         self.session = db_session
         self.api_connector = api_connector
-        self.organization_repo = OrganizationRepository(session=self.session)
-        self.office_repo = OfficeRepository(session=self.session)
-        self.rate_repo = RateRepository(session=self.session)
-        self.schedule_repo = ScheduleRepository(
+        self.organization_repo = AsyncOrganizationRepository(session=self.session)
+        self.office_repo = AsyncOfficeRepository(session=self.session)
+        self.rate_repo = AsyncRateRepository(session=self.session, model_class=Rate)
+        self.schedule_repo = AsyncScheduleRepository(
             session=self.session, model_class=Schedule
         )
 
@@ -148,7 +149,7 @@ class SyncService:
         # Process each office
         for office_data in map_data.offices:
             # Find the office by external_ref_id
-            existing_office = self.office_repo.find_one_by(
+            existing_office = await self.office_repo.find_one_by(
                 external_ref_id=str(office_data.id)
             )
 
@@ -160,13 +161,15 @@ class SyncService:
                 }
 
                 # Update existing office
-                self.office_repo.update(db_obj=existing_office, obj_in=office_dict)
+                await self.office_repo.update(
+                    db_obj=existing_office, obj_in=office_dict
+                )
                 stats["offices_updated"] += 1
 
                 # Process schedules
                 if office_data.schedule:
                     # Delete existing schedules
-                    self.schedule_repo.delete_by_office_id(existing_office.id)
+                    await self.schedule_repo.delete_by_office_id(existing_office.id)
 
                     # Convert schedule entries to dictionaries
                     schedule_dicts: List[Dict[str, Any]] = [
@@ -191,7 +194,7 @@ class SyncService:
                     ]
 
                     # Create new schedules
-                    self.schedule_repo.create_many(schedule_objects)
+                    await self.schedule_repo.create_many(schedule_objects)
                     stats["schedules_created"] += len(schedule_objects)
 
         return stats
@@ -250,7 +253,7 @@ class SyncService:
         finally:
             # Close the session if we created it
             if session_created and self.session is not None:
-                self.session.close()
+                await self.session.close()
 
     async def _process_organizations_and_offices(
         self, exchange_data: ExchangeResponse
@@ -289,19 +292,19 @@ class SyncService:
             }
 
             # Check if organization exists by external_ref_id
-            existing_org = self.organization_repo.find_one_by(
+            existing_org = await self.organization_repo.find_one_by(
                 external_ref_id=str(org_data.id)
             )
 
             if existing_org:
                 # Update existing organization
-                org = self.organization_repo.update(
+                org = await self.organization_repo.update(
                     db_obj=existing_org, obj_in=org_dict
                 )
                 stats["organizations_updated"] += 1
             else:
                 # Create new organization
-                org = self.organization_repo.create(obj_in=org_dict)
+                org = await self.organization_repo.create(obj_in=org_dict)
                 stats["organizations_created"] += 1
 
             # Add to active organization IDs
@@ -320,19 +323,19 @@ class SyncService:
                 }
 
                 # Check if office exists by external_ref_id
-                existing_office = self.office_repo.find_one_by(
+                existing_office = await self.office_repo.find_one_by(
                     external_ref_id=str(office_data.id)
                 )
 
                 if existing_office:
                     # Update existing office
-                    office = self.office_repo.update(
+                    office = await self.office_repo.update(
                         db_obj=existing_office, obj_in=office_dict
                     )
                     stats["offices_updated"] += 1
                 else:
                     # Create new office
-                    office = self.office_repo.create(obj_in=office_dict)
+                    office = await self.office_repo.create(obj_in=office_dict)
                     stats["offices_created"] += 1
 
                 # Add to active office IDs
@@ -350,7 +353,7 @@ class SyncService:
                     }
 
                     # Upsert rate
-                    rate = self.rate_repo.upsert(rate_dict)
+                    rate = await self.rate_repo.upsert(rate_dict)
                     if hasattr(rate, "_is_new") and rate._is_new:
                         stats["rates_created"] += 1
                     else:
@@ -358,11 +361,15 @@ class SyncService:
 
         # Mark inactive organizations and offices
         if active_org_ids:
-            self.organization_repo.mark_inactive_if_not_in_list(list(active_org_ids))
+            await self.organization_repo.mark_inactive_if_not_in_list(
+                list(active_org_ids)
+            )
 
         if active_office_ids:
-            stats["offices_deactivated"] = (
-                self.office_repo.mark_inactive_if_not_in_list(list(active_office_ids))
+            stats[
+                "offices_deactivated"
+            ] = await self.office_repo.mark_inactive_if_not_in_list(
+                list(active_office_ids)
             )
 
         return stats

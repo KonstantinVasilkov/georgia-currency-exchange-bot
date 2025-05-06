@@ -4,146 +4,41 @@ Rate repository for database operations.
 This module provides a repository for Rate model operations.
 """
 
-from typing import Optional, Sequence
-import uuid
-from sqlmodel import Session, select, col
-from datetime import datetime, timedelta
+from sqlmodel import select
 
-from src.db.models.rate import Rate
-from src.repositories.base_repository import BaseRepository
+from src.repositories.base_repository import AsyncBaseRepository
 
 
-class RateRepository(BaseRepository[Rate]):
+class AsyncRateRepository(AsyncBaseRepository):
     """
-    Repository for Rate model operations.
-
-    This class extends the BaseRepository to provide specific operations for the Rate model.
+    Async repository for Rate model operations.
     """
 
-    def __init__(self, session: Session):
-        """Initialize the repository with the Rate model."""
-        super().__init__(model_class=Rate, session=session)
-
-    def get_latest_rates(
-        self,
-        office_id: Optional[uuid.UUID] = None,
-        currency: Optional[str] = None,
-    ) -> Sequence[Rate]:
-        """
-        Get the latest rates.
-
-        Args:
-            office_id: Optional filter by office ID.
-            currency: Optional filter by currency.
-
-        Returns:
-            A list of the latest rates.
-        """
-        statement = select(Rate).order_by(col(Rate.timestamp).desc())
-
-        if office_id:
-            statement = statement.where(Rate.office_id == office_id)
-
-        if currency:
-            statement = statement.where(Rate.currency == currency)
-
-        return self.session.exec(statement).all()
-
-    def get_rates_by_office(self, office_id: uuid.UUID) -> Sequence[Rate]:
-        """
-        Get rates by office ID.
-
-        Args:
-            office_id: The ID of the office.
-
-        Returns:
-            A list of rates for the specified office.
-        """
+    async def get_latest_rates(self, limit: int = 10):
         statement = (
-            select(Rate)
-            .where(Rate.office_id == office_id)
-            .order_by(col(Rate.timestamp).desc())
+            select(self.model_class)
+            .order_by(getattr(self.model_class, "timestamp").desc())
+            .limit(limit)
         )
-        return self.session.exec(statement).all()
+        result = await self.session.exec(statement)
+        return result.all()
 
-    def get_rates_by_currency(self, currency: str) -> Sequence[Rate]:
-        """
-        Get rates by currency.
-
-        Args:
-            currency: The currency code.
-
-        Returns:
-            A list of rates for the specified currency.
-        """
+    async def get_by_organization(self, organization_id, limit: int = 10):
         statement = (
-            select(Rate)
-            .where(Rate.currency == currency)
-            .order_by(col(Rate.timestamp).desc())
+            select(self.model_class)
+            .where(getattr(self.model_class, "organization_id") == organization_id)
+            .order_by(getattr(self.model_class, "timestamp").desc())
+            .limit(limit)
         )
-        return self.session.exec(statement).all()
+        result = await self.session.exec(statement)
+        return result.all()
 
-    def get_best_rates(self, currency: str, buy: bool = True) -> Sequence[Rate]:
-        """
-        Get the best rates for a currency.
-
-        Args:
-            currency: The currency code.
-            buy: If True, get the best buy rates (lowest). If False, get the best sell rates (highest).
-
-        Returns:
-            A list of rates sorted by the best rate.
-        """
-        statement = select(Rate).where(Rate.currency == currency)
-
-        if buy:
-            # For buy rates, lower is better
-            statement = statement.order_by(col(Rate.buy_rate))
-        else:
-            # For sell rates, higher is better
-            statement = statement.order_by(col(Rate.sell_rate).desc())
-
-        return self.session.exec(statement).all()
-
-    def delete_old_rates(self, hours: int = 3) -> int:
-        """
-        Delete rates older than the specified number of hours.
-
-        Args:
-            hours: The number of hours to consider a rate as old.
-
-        Returns:
-            The number of rates deleted.
-        """
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
-        statement = select(Rate).where(Rate.timestamp < cutoff_time)
-        old_rates = self.session.exec(statement).all()
-
-        for rate in old_rates:
-            self.session.delete(rate)
-
-        self.session.commit()
-        return len(old_rates)
-
-    def upsert(self, rate_data: dict) -> Rate:
-        """
-        Create or update a rate.
-
-        Args:
-            rate_data: The rate data.
-
-        Returns:
-            The created or updated rate.
-        """
-        # Check if the rate exists by office_id and currency
-        existing_rate = self.find_one_by(
+    async def upsert(self, rate_data: dict):
+        existing_rate = await self.find_one_by(
             office_id=rate_data.get("office_id"),
             currency=rate_data.get("currency"),
         )
-
         if existing_rate:
-            # Update existing rate
-            return self.update(db_obj=existing_rate, obj_in=rate_data)
+            return await self.update(db_obj=existing_rate, obj_in=rate_data)
         else:
-            # Create new rate
-            return self.create(obj_in=rate_data)
+            return await self.create(obj_in=rate_data)
