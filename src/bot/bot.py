@@ -5,51 +5,53 @@ This module initializes and runs the Telegram bot using aiogram.
 """
 
 import asyncio
+import logging
+from typing import Sequence
 
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher, Router
+from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
 from src.config.logging_conf import get_logger
 from src.config.settings import settings
-from src.bot.routers import routers
+from src.bot.routers import start, currency
 
 logger = get_logger(__name__)
 
 
-async def setup_bot(bot: Bot, dp: Dispatcher) -> None:
+async def set_commands(bot: Bot) -> None:
     """
-    Set up bot commands and configuration.
+    Set bot commands.
 
     Args:
-        bot: The bot instance to configure.
-        dp: The dispatcher instance.
+        bot: The bot instance.
     """
-    # Set up bot commands
     commands = [
         BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="help", description="Show help information"),
     ]
     await bot.set_my_commands(commands)
 
 
-async def start_bot() -> None:
+async def main() -> None:
     """
-    Start the bot with the configured settings.
+    Run the bot.
     """
     try:
         # Initialize bot and dispatcher
         logger.info(f"Bot token: {settings.TELEGRAM_BOT_TOKEN}")
-        bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
-        storage = MemoryStorage()
-        dp = Dispatcher(storage=storage)
-
-        # Set up bot configuration
-        await setup_bot(bot, dp)
+        bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+        dp = Dispatcher()
 
         # Register routers
+        routers: Sequence[Router] = (
+            start.router,
+            currency.router,
+        )
         for router in routers:
             dp.include_router(router)
+
+        # Set bot commands
+        await set_commands(bot)
 
         # Start polling
         logger.info("Starting bot...")
@@ -62,14 +64,6 @@ async def start_bot() -> None:
         await bot.session.close()
 
 
-def main() -> None:
-    """
-    Main entry point for the bot.
-    """
-    try:
-        asyncio.run(start_bot())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped!")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())

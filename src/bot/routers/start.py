@@ -2,32 +2,31 @@
 Start command handler for the bot.
 """
 
-from aiogram import Router, types
+from aiogram import Router
+from aiogram.types import Message
 from aiogram.filters import Command
 
 from src.config.logging_conf import get_logger
+from src.bot.keyboards.inline import get_main_menu_keyboard
 
 logger = get_logger(__name__)
 
 # Create router instance
-router = Router()
+router = Router(name="start_router")
 
 
 @router.message(Command("start"))
-async def cmd_start(message: types.Message) -> None:
+async def handle_start(message: Message) -> None:
     """
     Handle the /start command.
 
     Args:
-        message: The message object from Telegram.
+        message: The message.
     """
     if message.from_user:
         logger.info(f"User {message.from_user.id} started the bot")
 
-    welcome_text = (
-        "👋 Welcome to the Georgia Currency Exchange Bot!\n\n"
-        "I can help you find the best currency exchange rates in Georgia.\n"
-        "Use /help to see available commands."
+    await message.answer(
+        text="Welcome to the Currency Exchange Bot! Please select an option:",
+        reply_markup=get_main_menu_keyboard(),
     )
-
-    await message.answer(welcome_text)

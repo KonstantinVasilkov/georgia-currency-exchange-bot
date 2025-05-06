@@ -8,7 +8,7 @@ at different levels.
 import os
 from pathlib import Path
 from src.config.logging_conf import get_logger
-from src.config.settings import PROJECT_ROOT
+from src.config.settings import settings
 
 
 def test_logging_levels():
@@ -26,7 +26,7 @@ def test_logging_levels():
     logger.info("Structured logging example", extra={"user_id": 123, "action": "login"})
 
     # Check that the log file exists
-    log_dir = os.environ.get("LOG_DIR", str(PROJECT_ROOT / "logs"))
+    log_dir = os.environ.get("LOG_DIR", str(settings.PROJECT_ROOT / "logs"))
     log_file = Path(log_dir) / "app.log"
     assert log_file.exists(), f"Log file {log_file} does not exist"
 
