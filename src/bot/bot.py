@@ -11,6 +11,7 @@ from typing import Sequence
 from aiogram import Bot, Dispatcher, Router
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from src.config.logging_conf import get_logger
 from src.config.settings import settings
@@ -30,6 +31,32 @@ async def set_commands(bot: Bot) -> None:
         BotCommand(command="start", description="Start the bot"),
     ]
     await bot.set_my_commands(commands)
+
+
+async def setup_bot(bot: Bot, dispatcher: Dispatcher) -> None:
+    """Set up bot commands and register routers. Used for test compatibility."""
+    try:
+        commands = [
+            BotCommand(command="start", description="Start the bot"),
+        ]
+        await bot.set_my_commands(commands)
+        dispatcher.include_router(start.router)
+        dispatcher.include_router(currency.router)
+    except Exception as exc:
+        logger.error(f"Error in setup_bot: {exc}")
+        raise
+
+
+async def start_bot() -> None:
+    """Start the bot for test compatibility. Initializes and runs the bot with routers."""
+    bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+    storage = MemoryStorage()
+    dispatcher = Dispatcher(storage=storage)
+    await setup_bot(bot, dispatcher)
+    try:
+        await dispatcher.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 
 async def main() -> None:

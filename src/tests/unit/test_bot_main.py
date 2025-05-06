@@ -91,22 +91,24 @@ async def test_start_bot_error_handling(
         mock_bot.session.close.assert_called_once()
 
 
-def test_main() -> None:
+@pytest.mark.asyncio
+async def test_main() -> None:
     """
     Test the main function.
     """
     with patch("src.bot.bot.start_bot") as mock_start_bot:
         # Call main
-        main()
+        await main()
 
         # Verify that start_bot was called
         mock_start_bot.assert_called_once()
 
 
-def test_main_keyboard_interrupt() -> None:
+@pytest.mark.asyncio
+async def test_main_keyboard_interrupt() -> None:
     """
     Test handling of KeyboardInterrupt in main.
     """
     with patch("src.bot.bot.start_bot", side_effect=KeyboardInterrupt):
         # Call main and verify it handles KeyboardInterrupt
-        main()  # Should not raise an exception
+        await main()  # Should not raise an exception
