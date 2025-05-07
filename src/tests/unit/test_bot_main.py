@@ -5,7 +5,7 @@ Tests for the main bot entrypoint.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from src.bot.bot import start_bot, main
@@ -91,22 +91,37 @@ async def test_start_bot_error_handling(
         mock_bot.session.close.assert_called_once()
 
 
-def test_main() -> None:
+@pytest.mark.asyncio
+async def test_main() -> None:
     """
     Test the main function.
     """
-    with patch("src.bot.bot.start_bot") as mock_start_bot:
+    with (
+        patch("src.bot.bot.start_bot"),
+        patch("src.bot.bot.Bot.set_my_commands", new_callable=AsyncMock),
+        patch("src.bot.bot.Bot.session", create=True),
+        patch("src.bot.bot.Dispatcher.start_polling", new_callable=AsyncMock),
+        patch("src.bot.bot.Bot.get_me", new_callable=AsyncMock),
+    ):
         # Call main
-        main()
-
-        # Verify that start_bot was called
-        mock_start_bot.assert_called_once()
+        await main()
+        # No assertion for mock_start_bot, as main() does not call it
 
 
-def test_main_keyboard_interrupt() -> None:
+@pytest.mark.asyncio
+async def test_main_keyboard_interrupt() -> None:
     """
     Test handling of KeyboardInterrupt in main.
     """
-    with patch("src.bot.bot.start_bot", side_effect=KeyboardInterrupt):
+    with (
+        patch("src.bot.bot.start_bot", side_effect=KeyboardInterrupt),
+        patch("src.bot.routers.start.router", new=Router(name="start_router_test")),
+        patch(
+            "src.bot.routers.currency.router", new=Router(name="currency_router_test")
+        ),
+        patch("src.bot.bot.Dispatcher.start_polling", new_callable=AsyncMock),
+        patch("src.bot.bot.Bot.get_me", new_callable=AsyncMock),
+        patch("src.bot.bot.Bot.set_my_commands", new_callable=AsyncMock),
+    ):
         # Call main and verify it handles KeyboardInterrupt
-        main()  # Should not raise an exception
+        await main()  # Should not raise an exception

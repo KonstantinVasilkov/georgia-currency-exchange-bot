@@ -1,7 +1,7 @@
 """Router for currency exchange functionality."""
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.inline import (
     get_main_menu_keyboard,
@@ -33,9 +33,10 @@ async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
     ]
 
     response = "Top 5 best rates to GEL:\n\n" + "\n".join(rates)
-    await callback.message.edit_text(
-        text=response, reply_markup=get_back_to_main_menu_keyboard()
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=response, reply_markup=get_back_to_main_menu_keyboard()
+        )
 
 
 @router.callback_query(F.data == "best_rates_between")
@@ -45,12 +46,13 @@ async def handle_best_rates_between(callback: CallbackQuery) -> None:
     Args:
         callback: The callback query.
     """
-    await callback.message.edit_text(
-        text="Select first currency:",
-        reply_markup=get_currency_selection_keyboard(
-            currencies=AVAILABLE_CURRENCIES, callback_prefix="from_currency"
-        ),
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text="Select first currency:",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=AVAILABLE_CURRENCIES, callback_prefix="from_currency"
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("from_currency:"))
@@ -60,14 +62,15 @@ async def handle_from_currency_selection(callback: CallbackQuery) -> None:
     Args:
         callback: The callback query.
     """
-    from_currency = callback.data.split(":")[1]
-    await callback.message.edit_text(
-        text=f"Selected {from_currency}. Now select second currency:",
-        reply_markup=get_currency_selection_keyboard(
-            currencies=[c for c in AVAILABLE_CURRENCIES if c != from_currency],
-            callback_prefix="to_currency",
-        ),
-    )
+    from_currency = callback.data.split(":")[1] if callback.data else ""
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=f"Selected {from_currency}. Now select second currency:",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=[c for c in AVAILABLE_CURRENCIES if c != from_currency],
+                callback_prefix="to_currency",
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("to_currency:"))
@@ -78,7 +81,7 @@ async def handle_to_currency_selection(callback: CallbackQuery) -> None:
         callback: The callback query.
     """
     # TODO: Implement actual rate fetching from CurrencyService
-    to_currency = callback.data.split(":")[1]  # noqa
+    to_currency = callback.data.split(":")[1] if callback.data else ""  # noqa
     rates = [
         "1 USD = 0.93 EUR (Bank of Georgia)",
         "1 USD = 0.79 GBP (TBC Bank)",
@@ -87,9 +90,10 @@ async def handle_to_currency_selection(callback: CallbackQuery) -> None:
     ]
 
     response = "Top 5 best rates between currencies:\n\n" + "\n".join(rates)
-    await callback.message.edit_text(
-        text=response, reply_markup=get_back_to_main_menu_keyboard()
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=response, reply_markup=get_back_to_main_menu_keyboard()
+        )
 
 
 @router.callback_query(F.data == "list_organizations")
@@ -108,10 +112,11 @@ async def handle_list_organizations(callback: CallbackQuery) -> None:
         "Basis Bank",
     ]
 
-    await callback.message.edit_text(
-        text="Select an organization to view its offices:",
-        reply_markup=get_organization_keyboard(organizations=organizations),
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text="Select an organization to view its offices:",
+            reply_markup=get_organization_keyboard(organizations=organizations),
+        )
 
 
 @router.callback_query(F.data.startswith("org:"))
@@ -122,7 +127,7 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
         callback: The callback query.
     """
     # TODO: Implement actual office fetching from OrganizationService
-    org_name = callback.data.split(":")[1]
+    org_name = callback.data.split(":")[1] if callback.data else ""
     offices = [
         "Main Branch - Rustaveli Ave. 7",
         "Vake Branch - Chavchavadze Ave. 60",
@@ -131,9 +136,10 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
     ]
 
     response = f"Offices of {org_name}:\n\n" + "\n".join(offices)
-    await callback.message.edit_text(
-        text=response, reply_markup=get_back_to_main_menu_keyboard()
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=response, reply_markup=get_back_to_main_menu_keyboard()
+        )
 
 
 @router.callback_query(F.data == "main_menu")
@@ -143,7 +149,8 @@ async def handle_main_menu(callback: CallbackQuery) -> None:
     Args:
         callback: The callback query.
     """
-    await callback.message.edit_text(
-        text="Welcome to the Currency Exchange Bot! Please select an option:",
-        reply_markup=get_main_menu_keyboard(),
-    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text="Welcome to the Currency Exchange Bot! Please select an option:",
+            reply_markup=get_main_menu_keyboard(),
+        )

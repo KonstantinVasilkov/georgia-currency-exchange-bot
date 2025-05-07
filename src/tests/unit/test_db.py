@@ -1,18 +1,22 @@
 """Test database connection and configuration."""
 
-from sqlmodel import Session
-from sqlalchemy import text
+import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel import select
+from src.db.models.organization import Organization
 
 
-def test_db_connection(test_engine):
+@pytest.mark.asyncio
+async def test_db_connection(async_test_engine):
     """Test that we can connect to the database and create a session."""
-    with Session(test_engine) as session:
-        # Try to execute a simple query
-        result = session.exec(text("SELECT 1"))
-        assert result.scalar() == 1
+    async with AsyncSession(async_test_engine) as session:
+        # Try to query organizations (should be empty)
+        result = await session.exec(select(Organization))
+        orgs = result.all()
+        assert isinstance(orgs, list)
 
     # Verify we're using SQLite in-memory database
-    assert "sqlite" in str(test_engine.url)
+    assert "sqlite" in str(async_test_engine.url)
 
     # Verify the engine is working
-    assert test_engine is not None
+    assert async_test_engine is not None

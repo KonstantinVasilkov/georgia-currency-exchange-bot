@@ -6,169 +6,82 @@ It implements common CRUD operations that can be used by specific repositories.
 """
 
 from typing import Generic, TypeVar, Type, Optional, Any, Dict, Union, Sequence
-from sqlmodel import SQLModel, select, Session
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel import SQLModel, select
 
 # Define a type variable for the model
 T = TypeVar("T", bound=SQLModel)
 
 
-class BaseRepository(Generic[T]):
+class AsyncBaseRepository(Generic[T]):
     """
-    Base repository for database operations.
-
-    This class provides common CRUD operations for database models.
-    It is designed to be subclassed by specific repositories.
-
-    Attributes:
-        model_class: The SQLModel class that this repository operates on.
+    Async base repository for database operations.
+    Provides async CRUD operations for database models.
     """
 
-    def __init__(self, model_class: Type[T], session: Session):
-        """
-        Initialize the repository with a model class.
-
-        Args:
-            model_class: The SQLModel class that this repository operates on.
-        """
+    def __init__(self, model_class: Type[T], session: AsyncSession):
         self.model_class = model_class
         self.session = session
 
-    def create(self, obj_in: Union[Dict[str, Any], T]) -> T:
-        """
-        Create a new record in the database.
-
-        Args:
-            obj_in: The data to create the record with. Can be a dict or a model instance.
-
-        Returns:
-            The created record.
-        """
+    async def create(self, obj_in: Union[Dict[str, Any], T]) -> T:
         if isinstance(obj_in, dict):
             obj_in_data = obj_in
             db_obj = self.model_class(**obj_in_data)  # type: ignore
         else:
             db_obj = obj_in
-
         self.session.add(db_obj)
-        self.session.commit()
-        self.session.refresh(db_obj)
+        await self.session.commit()
+        await self.session.refresh(db_obj)
         return db_obj
 
-    def get(self, id: Any) -> Optional[T]:
-        """
-        Get a record by ID.
+    async def get(self, id: Any) -> Optional[T]:
+        return await self.session.get(self.model_class, id)
 
-        Args:
-            id: The ID of the record to get.
-
-        Returns:
-            The record if found, None otherwise.
-        """
-        return self.session.get(self.model_class, id)
-
-    def get_multi(self, *, offset: int = 0, limit: int = 100) -> Sequence[T]:
-        """
-        Get multiple records.
-
-        Args:
-            offset: The number of records to skip.
-            limit: The maximum number of records to return.
-
-        Returns:
-            A list of records.
-        """
+    async def get_multi(self, *, offset: int = 0, limit: int = 100) -> Sequence[T]:
         statement = select(self.model_class).offset(offset).limit(limit)
-        return self.session.exec(statement).all()
+        result = await self.session.exec(statement)
+        return result.all()
 
-    def update(self, *, db_obj: T, obj_in: Union[Dict[str, Any], T]) -> T:
-        """
-        Update a record.
-
-        Args:
-            db_obj: The record to update.
-            obj_in: The data to update the record with. Can be a dict or a model instance.
-
-        Returns:
-            The updated record.
-        """
+    async def update(self, *, db_obj: T, obj_in: Union[Dict[str, Any], T]) -> T:
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
             update_data = obj_in.dict(exclude_unset=True)
-
         for field in update_data:
             if hasattr(db_obj, field):
                 setattr(db_obj, field, update_data[field])
-
         self.session.add(db_obj)
-        self.session.commit()
-        self.session.refresh(db_obj)
+        await self.session.commit()
+        await self.session.refresh(db_obj)
         return db_obj
 
-    def delete(self, *, id: Any) -> Optional[T]:
-        """
-        Delete a record by ID.
-
-        Args:
-            id: The ID of the record to delete.
-
-        Returns:
-            The deleted record if found, None otherwise.
-        """
-        obj = self.session.get(self.model_class, id)
+    async def delete(self, *, id: Any) -> Optional[T]:
+        obj = await self.session.get(self.model_class, id)
         if obj:
-            self.session.delete(obj)
-            self.session.commit()
+            await self.session.delete(obj)
+            await self.session.commit()
         return obj
 
-    def exists(self, **kwargs) -> bool:
-        """
-        Check if a record exists with the given criteria.
-
-        Args:
-            **kwargs: The criteria to check for.
-
-        Returns:
-            True if a record exists, False otherwise.
-        """
+    async def exists(self, **kwargs) -> bool:
         statement = select(self.model_class)
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
+        result = await self.session.exec(statement)
+        return result.first() is not None
 
-        result = self.session.exec(statement).first()
-        return result is not None
-
-    def find_by(self, **kwargs) -> Sequence[T]:
-        """
-        Find records by criteria.
-
-        Args:
-            **kwargs: The criteria to search for.
-
-        Returns:
-            A list of records matching the criteria.
-        """
+    async def find_by(self, **kwargs) -> Sequence[T]:
         statement = select(self.model_class)
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
+        result = await self.session.exec(statement)
+        return result.all()
 
-        return self.session.exec(statement).all()
-
-    def find_one_by(self, **kwargs) -> Optional[T]:
-        """
-        Find a single record by criteria.
-
-        Args:
-            **kwargs: The criteria to search for.
-
-        Returns:
-            The first record matching the criteria, or None if no record is found.
-        """
+    async def find_one_by(self, **kwargs) -> Optional[T]:
         statement = select(self.model_class)
         for key, value in kwargs.items():
             if hasattr(self.model_class, key):
                 statement = statement.where(getattr(self.model_class, key) == value)
-
-        return self.session.exec(statement).first()
+        result = await self.session.exec(statement)
+        return result.first()

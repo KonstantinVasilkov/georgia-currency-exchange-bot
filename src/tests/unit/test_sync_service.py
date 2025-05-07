@@ -169,47 +169,59 @@ def mock_session():
 
 @pytest.fixture
 def mock_repositories():
-    """Fixture providing mock repositories."""
-    with (
-        patch("src.services.sync_service.OrganizationRepository") as org_repo_mock,
-        patch("src.services.sync_service.OfficeRepository") as office_repo_mock,
-        patch("src.services.sync_service.RateRepository") as rate_repo_mock,
-    ):
-        # Configure the mocks
-        org_repo_instance = org_repo_mock.return_value
-        office_repo_instance = office_repo_mock.return_value
-        rate_repo_instance = rate_repo_mock.return_value
+    """
+    Fixture to provide async-mocked repository instances for SyncService tests.
+    """
+    org_repo = AsyncMock()
+    office_repo = AsyncMock()
+    rate_repo = AsyncMock()
+    # Set up common async methods as needed
+    org_repo.find_one_by = AsyncMock()
+    office_repo.find_one_by = AsyncMock()
+    rate_repo.find_one_by = AsyncMock()
+    org_repo.create = AsyncMock()
+    office_repo.create = AsyncMock()
+    rate_repo.create = AsyncMock()
+    org_repo.update = AsyncMock()
+    office_repo.update = AsyncMock()
+    rate_repo.update = AsyncMock()
+    org_repo.upsert = AsyncMock()
+    office_repo.upsert = AsyncMock()
+    rate_repo.upsert = AsyncMock()
+    org_repo.get = AsyncMock()
+    office_repo.get = AsyncMock()
+    rate_repo.get = AsyncMock()
+    org_repo.get_active_organizations = AsyncMock()
+    office_repo.get_active_offices = AsyncMock()
+    rate_repo.get_latest_rates = AsyncMock()
+    yield (org_repo, office_repo, rate_repo)
 
-        # Mock find_one_by to return None (no existing records)
-        org_repo_instance.find_one_by.return_value = None
-        office_repo_instance.find_one_by.return_value = None
 
-        # Mock create to return objects with IDs
-        def create_org(obj_in):
-            return MagicMock(id=uuid.uuid4())
-
-        def create_office(obj_in):
-            return MagicMock(id=uuid.uuid4())
-
-        def create_rate(obj_in):
-            rate = MagicMock()
-            rate._is_new = True
-            return rate
-
-        org_repo_instance.create.side_effect = create_org
-        office_repo_instance.create.side_effect = create_office
-        rate_repo_instance.upsert.side_effect = create_rate
-
-        yield org_repo_instance, office_repo_instance, rate_repo_instance
+@pytest.fixture
+def mock_schedule_repo():
+    repo = AsyncMock()
+    repo.delete_by_office_id = AsyncMock()
+    repo.get_by_office_id = AsyncMock(return_value=[])
+    return repo
 
 
 @pytest.mark.asyncio
 async def test_fetch_exchange_data(
-    mock_api_connector, sample_exchange_data, db_session
+    mock_api_connector,
+    sample_exchange_data,
+    db_session,
+    mock_repositories,
+    mock_schedule_repo,
 ):
     """Test fetching exchange data from the API."""
+    org_repo, office_repo, rate_repo = mock_repositories
+    org_repo.find_one_by.return_value = None
     # Create a SyncService with the mock API connector
     sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
+    sync_service.organization_repo = org_repo
+    sync_service.office_repo = office_repo
+    sync_service.rate_repo = rate_repo
+    sync_service.schedule_repo = mock_schedule_repo
 
     # Call the fetch_exchange_data method
     result = await sync_service.fetch_exchange_data()
@@ -229,10 +241,22 @@ async def test_fetch_exchange_data(
 
 
 @pytest.mark.asyncio
-async def test_fetch_map_data(mock_api_connector, sample_map_data, db_session):
+async def test_fetch_map_data(
+    mock_api_connector,
+    sample_map_data,
+    db_session,
+    mock_repositories,
+    mock_schedule_repo,
+):
     """Test fetching map data from the API."""
+    org_repo, office_repo, rate_repo = mock_repositories
+    org_repo.find_one_by.return_value = None
     # Create a SyncService with the mock API connector
     sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
+    sync_service.organization_repo = org_repo
+    sync_service.office_repo = office_repo
+    sync_service.rate_repo = rate_repo
+    sync_service.schedule_repo = mock_schedule_repo
 
     # Call the fetch_map_data method
     result = await sync_service.fetch_map_data()
@@ -249,13 +273,19 @@ async def test_fetch_map_data(mock_api_connector, sample_map_data, db_session):
 
 
 @pytest.mark.asyncio
-async def test_process_map_data(mock_session, mock_repositories, sample_map_data):
+async def test_process_map_data(
+    mock_session, mock_repositories, sample_map_data, mock_schedule_repo
+):
     """Test processing map data to update office coordinates."""
-    # Unpack the mock repositories
     org_repo, office_repo, rate_repo = mock_repositories
+    org_repo.find_one_by.return_value = None
 
     # Create a SyncService with the mock session
     sync_service = SyncService(db_session=mock_session, api_connector=None)
+    sync_service.organization_repo = org_repo
+    sync_service.office_repo = office_repo
+    sync_service.rate_repo = rate_repo
+    sync_service.schedule_repo = mock_schedule_repo
 
     # Create a MapResponse object from the sample data
     map_data = MapResponse.model_validate(sample_map_data)
@@ -278,15 +308,20 @@ async def test_process_map_data(mock_session, mock_repositories, sample_map_data
 
 
 @pytest.mark.asyncio
-async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
+async def test_sync_data(
+    mock_api_connector, mock_session, mock_repositories, mock_schedule_repo
+):
     """Test synchronizing data from the API to the database."""
-    # Unpack the mock repositories
     org_repo, office_repo, rate_repo = mock_repositories
-
-    # Create a SyncService with the mock API connector and session
+    org_repo.find_one_by.return_value = None
+    office_repo.find_one_by.return_value = None
     sync_service = SyncService(
         db_session=mock_session, api_connector=mock_api_connector
     )
+    sync_service.organization_repo = org_repo
+    sync_service.office_repo = office_repo
+    sync_service.rate_repo = rate_repo
+    sync_service.schedule_repo = mock_schedule_repo
 
     # Call the sync_data method
     stats = await sync_service.sync_data()
@@ -310,16 +345,23 @@ async def test_sync_data(mock_api_connector, mock_session, mock_repositories):
 
 @pytest.mark.asyncio
 async def test_process_organizations_and_offices(
-    mock_session, mock_repositories, sample_exchange_data, mock_api_connector
+    mock_session,
+    mock_repositories,
+    sample_exchange_data,
+    mock_api_connector,
+    mock_schedule_repo,
 ):
     """Test processing organizations and offices from exchange data."""
-    # Unpack the mock repositories
     org_repo, office_repo, rate_repo = mock_repositories
-
-    # Create a SyncService with the mock session
+    org_repo.find_one_by.return_value = None
+    office_repo.find_one_by.return_value = None
     sync_service = SyncService(
         db_session=mock_session, api_connector=mock_api_connector
     )
+    sync_service.organization_repo = org_repo
+    sync_service.office_repo = office_repo
+    sync_service.rate_repo = rate_repo
+    sync_service.schedule_repo = mock_schedule_repo
 
     # Create an ExchangeResponse object from the sample data
     exchange_data = ExchangeResponse.model_validate(sample_exchange_data)

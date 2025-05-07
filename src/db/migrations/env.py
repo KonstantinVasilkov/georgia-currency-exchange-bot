@@ -1,11 +1,11 @@
 from logging.config import fileConfig
-
+from sqlalchemy import create_engine
 
 from alembic import context
 from sqlmodel import SQLModel
 
 # Import all models so that SQLModel can find them
-from src.db.session import get_engine
+# from src.db.session import get_engine
 from src.config.settings import settings
 from src.db.models import Organization, Office, Rate, Schedule  # noqa
 
@@ -69,16 +69,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Use our existing engine from the session module
-    connectable = get_engine()
+    connectable = create_engine(settings.DATABASE_URL, echo=False)
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            # Include schemas in the autogenerate output
             include_schemas=True,
-            # Compare types for autogenerate
             compare_type=True,
         )
 
