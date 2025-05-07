@@ -4,6 +4,7 @@ SyncService module for fetching and synchronizing exchange rate data.
 
 import uuid
 from typing import List, Dict, Any
+from datetime import datetime
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,6 +41,7 @@ class SyncService:
             db_session: The async database session. If not provided, a new session will be created.
             api_connector: The MyFin API connector. If not provided, a new connector will be created.
         """
+        logger.warning(f"[SyncService] Initialized with db_session: {db_session}")
         self.session = db_session
         self.api_connector = api_connector
         self.organization_repo = AsyncOrganizationRepository(session=self.session)
@@ -48,6 +50,19 @@ class SyncService:
         self.schedule_repo = AsyncScheduleRepository(
             session=self.session, model_class=Schedule
         )
+
+        # Print the actual SQLite file path if possible
+        try:
+            bind = db_session.get_bind()
+            # If bind is a Connection, get its engine
+            engine = getattr(bind, 'engine', bind)
+            url = str(getattr(engine, 'url', 'unknown'))
+            logger.warning(f"[SyncService] SQLAlchemy engine URL: {url}")
+            if url.startswith("sqlite:///"):
+                db_path = url.replace("sqlite:///", "")
+                logger.warning(f"[SyncService] Using SQLite DB file: {db_path}")
+        except Exception as exc:
+            logger.warning(f"[SyncService] Could not determine DB file: {exc}")
 
     async def fetch_exchange_data(
         self,
@@ -254,6 +269,93 @@ class SyncService:
             if session_created and self.session is not None:
                 await self.session.close()
 
+    async def _upsert_nbg_organization_and_rates(
+        self, best_rates: dict[str, Any], timestamp: datetime | None = None
+    ) -> None:
+        """
+        Upsert NBG organization, office, and rates from the best field of the API response.
+
+        Args:
+            best_rates: The 'best' field from the API response.
+            timestamp: The timestamp to use for the rates (default: now).
+        """
+        NBG_ORG_REF = "NBG"
+        NBG_ORG_NAME = "National Bank of Georgia"
+        NBG_OFFICE_REF = "NBG_OFFICE"
+        NBG_OFFICE_NAME = "NBG Main Office"
+        NBG_OFFICE_ADDRESS = "3, Gudamakari St, Tbilisi"
+        now = timestamp or datetime.utcnow()
+
+        logger.warning(f"[NBG] _upsert_nbg_organization_and_rates called with best_rates: {best_rates}")
+        try:
+            # Upsert organization
+            logger.warning(f"[NBG] Upserting organization with external_ref_id={NBG_ORG_REF}")
+            existing_org = await self.organization_repo.find_one_by(external_ref_id=NBG_ORG_REF)
+            if existing_org:
+                logger.warning(f"[NBG] Organization exists: {existing_org}")
+                org = await self.organization_repo.update(
+                    db_obj=existing_org, obj_in={"name": NBG_ORG_NAME}
+                )
+                logger.debug(f"Updated NBG organization: {org}")
+            else:
+                logger.warning(f"[NBG] Organization does not exist, will create.")
+                org = await self.organization_repo.create(
+                    obj_in={
+                        "external_ref_id": NBG_ORG_REF,
+                        "name": NBG_ORG_NAME,
+                        "website": None,
+                        "logo_url": None,
+                    }
+                )
+                logger.debug(f"Created NBG organization: {org}")
+
+            # Upsert office
+            logger.debug(f"Upserting NBG office with external_ref_id={NBG_OFFICE_REF}")
+            existing_office = await self.office_repo.find_one_by(
+                external_ref_id=NBG_OFFICE_REF
+            )
+            if existing_office:
+                office = await self.office_repo.update(
+                    db_obj=existing_office,
+                    obj_in={
+                        "name": NBG_OFFICE_NAME,
+                        "address": NBG_OFFICE_ADDRESS,
+                        "lat": 0.0,
+                        "lng": 0.0,
+                        "organization_id": org.id,
+                    },
+                )
+                logger.debug(f"Updated NBG office: {office}")
+            else:
+                office = await self.office_repo.create(
+                    obj_in={
+                        "external_ref_id": NBG_OFFICE_REF,
+                        "name": NBG_OFFICE_NAME,
+                        "address": NBG_OFFICE_ADDRESS,
+                        "lat": 0.0,
+                        "lng": 0.0,
+                        "organization_id": org.id,
+                    }
+                )
+                logger.debug(f"Created NBG office: {office}")
+
+            # Upsert rates for each currency
+            for currency, rate_data in best_rates.items():
+                nbg_value = rate_data.nbg
+                if nbg_value is not None:
+                    rate_dict = {
+                        "office_id": office.id,
+                        "currency": currency,
+                        "buy_rate": nbg_value,
+                        "sell_rate": nbg_value,
+                        "timestamp": now,
+                    }
+                    await self.rate_repo.upsert(rate_dict)
+                    logger.debug(f"Upserted NBG rate: {rate_dict}")
+        except Exception as exc:
+            logger.warning(f"[NBG] Exception during NBG upsert: {exc}")
+            raise
+
     async def _process_organizations_and_offices(
         self, exchange_data: ExchangeResponse
     ) -> dict[str, int]:
@@ -275,6 +377,11 @@ class SyncService:
             "rates_created": 0,
             "rates_updated": 0,
         }
+
+        # Upsert NBG organization, office, and rates
+        await self._upsert_nbg_organization_and_rates(
+            best_rates=exchange_data.best,
+        )
 
         # Keep track of active organization and office IDs
         active_org_ids: set[uuid.UUID] = set()

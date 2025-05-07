@@ -13,7 +13,7 @@ def get_async_engine():
     if database_url.startswith("sqlite"):
         # SQLite async driver
         database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://")
-    engine = create_async_engine(database_url, echo=settings.DEBUG, future=True)
+    engine = create_async_engine(database_url, echo=False, future=True)
     return engine
 
 
