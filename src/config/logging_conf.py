@@ -39,6 +39,7 @@ if not settings.ENVIRONMENT == "TEST":
         diagnose=settings.DEBUG,
     )
 
+
 def get_logger(name: Optional[str] = None):
     """
     Get a logger instance with the given name.

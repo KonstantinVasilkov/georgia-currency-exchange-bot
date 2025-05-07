@@ -55,8 +55,8 @@ class SyncService:
         try:
             bind = db_session.get_bind()
             # If bind is a Connection, get its engine
-            engine = getattr(bind, 'engine', bind)
-            url = str(getattr(engine, 'url', 'unknown'))
+            engine = getattr(bind, "engine", bind)
+            url = str(getattr(engine, "url", "unknown"))
             logger.warning(f"[SyncService] SQLAlchemy engine URL: {url}")
             if url.startswith("sqlite:///"):
                 db_path = url.replace("sqlite:///", "")
@@ -286,11 +286,17 @@ class SyncService:
         NBG_OFFICE_ADDRESS = "3, Gudamakari St, Tbilisi"
         now = timestamp or datetime.utcnow()
 
-        logger.warning(f"[NBG] _upsert_nbg_organization_and_rates called with best_rates: {best_rates}")
+        logger.warning(
+            f"[NBG] _upsert_nbg_organization_and_rates called with best_rates: {best_rates}"
+        )
         try:
             # Upsert organization
-            logger.warning(f"[NBG] Upserting organization with external_ref_id={NBG_ORG_REF}")
-            existing_org = await self.organization_repo.find_one_by(external_ref_id=NBG_ORG_REF)
+            logger.warning(
+                f"[NBG] Upserting organization with external_ref_id={NBG_ORG_REF}"
+            )
+            existing_org = await self.organization_repo.find_one_by(
+                external_ref_id=NBG_ORG_REF
+            )
             if existing_org:
                 logger.warning(f"[NBG] Organization exists: {existing_org}")
                 org = await self.organization_repo.update(
@@ -298,7 +304,7 @@ class SyncService:
                 )
                 logger.debug(f"Updated NBG organization: {org}")
             else:
-                logger.warning(f"[NBG] Organization does not exist, will create.")
+                logger.warning("[NBG] Organization does not exist, will create.")
                 org = await self.organization_repo.create(
                     obj_in={
                         "external_ref_id": NBG_ORG_REF,

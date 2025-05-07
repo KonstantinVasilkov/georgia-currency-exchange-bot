@@ -9,15 +9,13 @@ from src.bot.keyboards.inline import (
     get_organization_keyboard,
     get_back_to_main_menu_keyboard,
 )
-from src.services.currency_service import CurrencyService, RateRow
+from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
 from src.repositories.office_repository import AsyncOfficeRepository
 from src.repositories.rate_repository import AsyncRateRepository
 from src.config.logging_conf import get_logger
-from sqlmodel.ext.asyncio.session import AsyncSession
-from src.db.session import get_async_session, async_get_db_session
+from src.db.session import async_get_db_session
 from src.db.models.rate import Rate
-import asyncio
 
 router = Router(name="currency_router")
 
@@ -54,16 +52,18 @@ async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
         response = "No rates available."
     else:
         # Prepare pretty table (single line per org)
-        header = f"{'🏦 Organization':<22} │ {'🇺🇸 USD':>8} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>8}"
+        header = (
+            f"{'🏦 Organization':<22} │ {'🇺🇸 USD':>8} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>8}"
+        )
         sep = "─" * len(header)
         lines = [header, sep]
         for row in rows:
-            org = row.organization if row.organization else '-'
-            usd = f"{row.usd:.4f}" if row.usd is not None else '-'
-            eur = f"{row.eur:.4f}" if row.eur is not None else '-'
-            rub = f"{row.rub:.5f}" if row.rub is not None else '-'
+            org = row.organization if row.organization else "-"
+            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
+            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
+            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
             lines.append(f"{org:<22} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
-        table = '\n'.join(lines)
+        table = "\n".join(lines)
         response = (
             "<b>💱 Latest Exchange Rates to GEL</b>\n"
             "<i>1. National Bank of Georgia (NBG)</i>\n"
@@ -73,7 +73,9 @@ async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
         )
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
-            text=response, reply_markup=get_back_to_main_menu_keyboard(), parse_mode="HTML"
+            text=response,
+            reply_markup=get_back_to_main_menu_keyboard(),
+            parse_mode="HTML",
         )
 
 

@@ -4,16 +4,19 @@ from src.repositories.organization_repository import AsyncOrganizationRepository
 from src.repositories.office_repository import AsyncOfficeRepository
 from src.repositories.rate_repository import AsyncRateRepository
 
+
 class RateRow(BaseModel):
     organization: str
     usd: float | None = None
     eur: float | None = None
     rub: float | None = None
 
+
 class CurrencyService:
     """
     Service for fetching and formatting latest currency rates for the bot.
     """
+
     def __init__(
         self,
         organization_repo: AsyncOrganizationRepository,
@@ -36,7 +39,9 @@ class CurrencyService:
             nbg_offices = await self.office_repo.get_by_organization(nbg_org.id)
             if nbg_offices:
                 nbg_office = nbg_offices[0]
-                nbg_rates = await self.rate_repo.get_rates_by_office(nbg_office.id, limit=10)
+                nbg_rates = await self.rate_repo.get_rates_by_office(
+                    nbg_office.id, limit=10
+                )
                 nbg_row = self._make_row(nbg_org.name, nbg_rates)
         if not nbg_row:
             nbg_row = RateRow(organization="NBG", usd=None, eur=None, rub=None)
@@ -57,7 +62,9 @@ class CurrencyService:
                 offices = await self.office_repo.get_by_organization(org.id)
                 if offices:
                     office = offices[0]
-                    rates = await self.rate_repo.get_rates_by_office(office.id, limit=10)
+                    rates = await self.rate_repo.get_rates_by_office(
+                        office.id, limit=10
+                    )
                     row = self._make_row(org.name, rates)
             if not row:
                 row = RateRow(organization=bank_name, usd=None, eur=None, rub=None)
@@ -68,7 +75,12 @@ class CurrencyService:
         best_rows = []
         best_candidates = []
         for org in all_orgs:
-            if org.external_ref_id in {"NBG", "bank_of_georgia", "tbc_bank", "credo_bank"}:
+            if org.external_ref_id in {
+                "NBG",
+                "bank_of_georgia",
+                "tbc_bank",
+                "credo_bank",
+            }:
                 continue
             if org.id in shown_org_ids:
                 continue
@@ -79,7 +91,9 @@ class CurrencyService:
                 row = self._make_row(org.name, rates)
                 best_candidates.append(row)
         # Sort by USD rate descending, then by org name
-        best_candidates.sort(key=lambda r: (r.usd if r.usd is not None else -float('inf')), reverse=True)
+        best_candidates.sort(
+            key=lambda r: (r.usd if r.usd is not None else -float("inf")), reverse=True
+        )
         best_rows = best_candidates[:6]
 
         # Compose result
@@ -97,4 +111,4 @@ class CurrencyService:
                 eur = rate.buy_rate
             elif rate.currency == "RUB":
                 rub = rate.buy_rate
-        return RateRow(organization=org_name, usd=usd, eur=eur, rub=rub) 
+        return RateRow(organization=org_name, usd=usd, eur=eur, rub=rub)
