@@ -7,11 +7,11 @@ from typing import List, Dict, Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from src.db.session import async_get_db_session
 from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
 from src.external_connectors.myfin.schemas import ExchangeResponse, MapResponse
 from src.utils.http_client import get_http_client
-from src.db.session import get_session, get_db_session
 from src.repositories.organization_repository import AsyncOrganizationRepository
 from src.repositories.office_repository import AsyncOfficeRepository
 from src.repositories.rate_repository import AsyncRateRepository
@@ -221,8 +221,7 @@ class SyncService:
         # Create a session if not provided
         session_created = False
         if self.session is None:
-            session_gen = get_session()
-            self.session = next(session_gen)
+            self.session = await self.session
             session_created = True
 
         try:
@@ -385,19 +384,15 @@ async def sync_exchange_data():
     logger.info("Starting exchange data synchronization")
 
     try:
-        with get_db_session() as db_session:
-            http_client = get_http_client()
-            myfin_api_connector = MyFinApiConnector(
-                http_client_session=http_client.session
-            )
+        # If needed, replace with async session management or leave as TODO for async refactor.
+        # with get_db_session() as db_session:
+        http_client = get_http_client()
+        myfin_api_connector = MyFinApiConnector(http_client_session=http_client.session)
+        async with async_get_db_session() as db_session:
             sync_service = SyncService(
                 db_session=db_session, api_connector=myfin_api_connector
             )
-
-            # Sync data from the MyFin API to the database
             stats = await sync_service.sync_data()
-
-            logger.info(f"Exchange data synchronization completed: {stats}")
 
         logger.info(f"Exchange data synchronization completed: {stats}")
     except Exception as e:
