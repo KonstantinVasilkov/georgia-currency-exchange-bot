@@ -4,10 +4,11 @@ SyncService module for fetching and synchronizing exchange rate data.
 
 import uuid
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from src.db.models import Organization
 from src.db.session import async_get_db_session
 from src.config.logging_conf import get_logger
 from src.external_connectors.myfin.api_connector import MyFinApiConnector
@@ -271,7 +272,7 @@ class SyncService:
 
     async def _upsert_nbg_organization_and_rates(
         self, best_rates: dict[str, Any], timestamp: datetime | None = None
-    ) -> None:
+    ) -> Organization:
         """
         Upsert NBG organization, office, and rates from the best field of the API response.
 
@@ -284,55 +285,23 @@ class SyncService:
         NBG_OFFICE_REF = "NBG_OFFICE"
         NBG_OFFICE_NAME = "NBG Main Office"
         NBG_OFFICE_ADDRESS = "3, Gudamakari St, Tbilisi"
-        now = timestamp or datetime.utcnow()
+        now = timestamp or datetime.now(tz=UTC)
 
-        logger.warning(
-            f"[NBG] _upsert_nbg_organization_and_rates called with best_rates: {best_rates}"
-        )
         try:
-            # Upsert organization
-            logger.warning(
-                f"[NBG] Upserting organization with external_ref_id={NBG_ORG_REF}"
-            )
-            existing_org = await self.organization_repo.find_one_by(
-                external_ref_id=NBG_ORG_REF
-            )
-            if existing_org:
-                logger.warning(f"[NBG] Organization exists: {existing_org}")
-                org = await self.organization_repo.update(
-                    db_obj=existing_org, obj_in={"name": NBG_ORG_NAME}
-                )
-                logger.debug(f"Updated NBG organization: {org}")
-            else:
-                logger.warning("[NBG] Organization does not exist, will create.")
+            org = await self.organization_repo.find_one_by(external_ref_id=NBG_ORG_REF)
+            if not org:
                 org = await self.organization_repo.create(
                     obj_in={
                         "external_ref_id": NBG_ORG_REF,
                         "name": NBG_ORG_NAME,
                         "website": None,
                         "logo_url": None,
+                        "is_active": True,
                     }
                 )
-                logger.debug(f"Created NBG organization: {org}")
 
-            # Upsert office
-            logger.debug(f"Upserting NBG office with external_ref_id={NBG_OFFICE_REF}")
-            existing_office = await self.office_repo.find_one_by(
-                external_ref_id=NBG_OFFICE_REF
-            )
-            if existing_office:
-                office = await self.office_repo.update(
-                    db_obj=existing_office,
-                    obj_in={
-                        "name": NBG_OFFICE_NAME,
-                        "address": NBG_OFFICE_ADDRESS,
-                        "lat": 0.0,
-                        "lng": 0.0,
-                        "organization_id": org.id,
-                    },
-                )
-                logger.debug(f"Updated NBG office: {office}")
-            else:
+            office = await self.office_repo.find_one_by(external_ref_id=NBG_OFFICE_REF)
+            if not office:
                 office = await self.office_repo.create(
                     obj_in={
                         "external_ref_id": NBG_OFFICE_REF,
@@ -343,7 +312,6 @@ class SyncService:
                         "organization_id": org.id,
                     }
                 )
-                logger.debug(f"Created NBG office: {office}")
 
             # Upsert rates for each currency
             for currency, rate_data in best_rates.items():
@@ -357,9 +325,8 @@ class SyncService:
                         "timestamp": now,
                     }
                     await self.rate_repo.upsert(rate_dict)
-                    logger.debug(f"Upserted NBG rate: {rate_dict}")
-        except Exception as exc:
-            logger.warning(f"[NBG] Exception during NBG upsert: {exc}")
+            return org
+        except Exception:
             raise
 
     async def _process_organizations_and_offices(
@@ -385,14 +352,14 @@ class SyncService:
         }
 
         # Upsert NBG organization, office, and rates
-        await self._upsert_nbg_organization_and_rates(
+        nbg_org = await self._upsert_nbg_organization_and_rates(
             best_rates=exchange_data.best,
         )
 
         # Keep track of active organization and office IDs
         active_org_ids: set[uuid.UUID] = set()
         active_office_ids: set[uuid.UUID] = set()
-
+        active_org_ids.add(nbg_org.id)
         # Process each organization
         for org_data in exchange_data.organizations:
             # Save organization to database
