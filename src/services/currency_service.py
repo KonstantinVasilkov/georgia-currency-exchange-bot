@@ -48,14 +48,14 @@ class CurrencyService:
 
         # 2. Online banks (fixed order)
         online_banks = [
-            ("Bank of Georgia", "bank_of_georgia"),
-            ("TBC Bank", "tbc_bank"),
-            ("Credo Bank", "credo_bank"),
+            ("Bank of Georgia", "mBank"),
+            ("TBC Bank", "TBC mobile"),
+            ("Credo Bank", "MyCredo"),
         ]
         bank_rows = []
         shown_org_ids = set()
-        for bank_name, bank_ref in online_banks:
-            org = await self.organization_repo.find_one_by(external_ref_id=bank_ref)
+        for bank_name, bank_ref_name in online_banks:
+            org = await self.organization_repo.find_one_by(name=bank_ref_name)
             row = None
             if org and org.is_active:
                 shown_org_ids.add(org.id)

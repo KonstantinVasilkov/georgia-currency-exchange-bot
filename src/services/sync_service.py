@@ -310,6 +310,7 @@ class SyncService:
                         "lat": 0.0,
                         "lng": 0.0,
                         "organization_id": org.id,
+                        "is_active": True,
                     }
                 )
 
@@ -368,6 +369,7 @@ class SyncService:
                 "name": org_data.name.en,
                 "website": org_data.link,
                 "logo_url": org_data.icon,
+                "type": org_data.type,
             }
 
             # Check if organization exists by external_ref_id

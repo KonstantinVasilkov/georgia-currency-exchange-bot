@@ -64,13 +64,7 @@ async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
             rub = f"{row.rub:.5f}" if row.rub is not None else "-"
             lines.append(f"{org:<22} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
         table = "\n".join(lines)
-        response = (
-            "<b>💱 Latest Exchange Rates to GEL</b>\n"
-            "<i>1. National Bank of Georgia (NBG)</i>\n"
-            "<i>2-4. Online Banks</i>\n"
-            "<i>5-10. Best Other Organizations</i>\n\n"
-            f"<pre>{table}</pre>"
-        )
+        response = f"<pre>{table}</pre>"
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
             text=response,
