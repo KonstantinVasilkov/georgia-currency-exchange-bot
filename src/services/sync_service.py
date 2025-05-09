@@ -391,8 +391,62 @@ class SyncService:
             # Add to active organization IDs
             active_org_ids.add(org.id)
 
+            # --- VIRTUAL OFFICE LOGIC FOR ONLINE BANKS ---
+            offices_to_process = list(org_data.offices)
+            if org_dict["type"] == "Online" and not offices_to_process:
+                # Check if a virtual office already exists
+                existing_virtual_office = await self.office_repo.find_one_by(
+                    organization_id=org.id, name="Online Office"
+                )
+                if not existing_virtual_office:
+                    virtual_office = await self.office_repo.create(
+                        obj_in={
+                            "external_ref_id": f"{org_dict['external_ref_id']}_VIRTUAL_OFFICE",
+                            "name": "Online Office",
+                            "address": "Online",
+                            "lat": 0.0,
+                            "lng": 0.0,
+                            "organization_id": org.id,
+                            "is_active": True,
+                        }
+                    )
+                    stats["offices_created"] += 1
+                    offices_to_process.append(
+                        type(
+                            "OfficeData",
+                            (),
+                            {
+                                "id": virtual_office.external_ref_id,
+                                "name": type("Name", (), {"en": virtual_office.name})(),
+                                "address": type(
+                                    "Address", (), {"en": virtual_office.address}
+                                )(),
+                                "rates": {},
+                            },
+                        )()
+                    )
+                else:
+                    offices_to_process.append(
+                        type(
+                            "OfficeData",
+                            (),
+                            {
+                                "id": existing_virtual_office.external_ref_id,
+                                "name": type(
+                                    "Name", (), {"en": existing_virtual_office.name}
+                                )(),
+                                "address": type(
+                                    "Address",
+                                    (),
+                                    {"en": existing_virtual_office.address},
+                                )(),
+                                "rates": {},
+                            },
+                        )()
+                    )
+
             # Process each office for this organization
-            for office_data in org_data.offices:
+            for office_data in offices_to_process:
                 # Save office to database
                 office_dict = {
                     "external_ref_id": str(office_data.id),
@@ -421,6 +475,28 @@ class SyncService:
 
                 # Add to active office IDs
                 active_office_ids.add(office.id)
+
+                # --- INSERT ORG-LEVEL RATES FOR ONLINE BANKS ---
+                if (
+                    org_dict["type"] == "Online"
+                    and not office_data.rates
+                    and hasattr(org_data, "best")
+                    and org_data.best
+                ):
+                    now = datetime.now(tz=UTC)
+                    for currency, org_rate in org_data.best.items():
+                        rate_dict = {
+                            "office_id": office.id,
+                            "currency": currency,
+                            "buy_rate": org_rate.buy,
+                            "sell_rate": org_rate.sell,
+                            "timestamp": now,
+                        }
+                        rate = await self.rate_repo.upsert(rate_dict)
+                        if hasattr(rate, "_is_new") and rate._is_new:
+                            stats["rates_created"] += 1
+                        else:
+                            stats["rates_updated"] += 1
 
                 # Process rates for this office
                 for currency, rate_data in office_data.rates.items():

@@ -42,15 +42,15 @@ class CurrencyService:
                 nbg_rates = await self.rate_repo.get_rates_by_office(
                     nbg_office.id, limit=10
                 )
-                nbg_row = self._make_row(nbg_org.name, nbg_rates)
+                nbg_row = self._make_row("NBG", nbg_rates)
         if not nbg_row:
             nbg_row = RateRow(organization="NBG", usd=None, eur=None, rub=None)
 
         # 2. Online banks (fixed order)
         online_banks = [
-            ("Bank of Georgia", "mBank"),
-            ("TBC Bank", "TBC mobile"),
-            ("Credo Bank", "MyCredo"),
+            ("BoG[online]", "mBank"),
+            ("TBC[online]", "TBC mobile"),
+            ("Credo[online]", "MyCredo"),
         ]
         bank_rows = []
         shown_org_ids = set()
@@ -65,7 +65,7 @@ class CurrencyService:
                     rates = await self.rate_repo.get_rates_by_office(
                         office.id, limit=10
                     )
-                    row = self._make_row(org.name, rates)
+                    row = self._make_row(bank_name, rates)
             if not row:
                 row = RateRow(organization=bank_name, usd=None, eur=None, rub=None)
             bank_rows.append(row)

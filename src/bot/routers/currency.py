@@ -53,16 +53,26 @@ async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
     else:
         # Prepare pretty table (single line per org)
         header = (
-            f"{'🏦 Organization':<22} │ {'🇺🇸 USD':>8} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>8}"
+            f"{'🏦 Organization':<14} │ {'🇺🇸 USD':>7} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>7}"
         )
         sep = "─" * len(header)
         lines = [header, sep]
-        for row in rows:
+        nbg_line = f"{rows[0].organization:<15} │ {rows[0].usd:>8} │ {rows[0].eur:>8} │ {rows[0].rub:>8}"
+        lines.append(nbg_line)
+        lines.append(sep)
+        for row in rows[1:4]:
             org = row.organization if row.organization else "-"
             usd = f"{row.usd:.4f}" if row.usd is not None else "-"
             eur = f"{row.eur:.4f}" if row.eur is not None else "-"
             rub = f"{row.rub:.5f}" if row.rub is not None else "-"
-            lines.append(f"{org:<22} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
+            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
+        lines.append(sep)
+        for row in rows[4:]:
+            org = row.organization if row.organization else "-"
+            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
+            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
+            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
+            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
         table = "\n".join(lines)
         response = f"<pre>{table}</pre>"
     if callback.message is not None and isinstance(callback.message, Message):
