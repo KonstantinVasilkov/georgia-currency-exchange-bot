@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from src.services.sync_service import (
     SyncService,
+    DataFetcher,
     ExchangeResponse,
     MapResponse,
     sync_exchange_data,
@@ -216,15 +217,12 @@ async def test_fetch_exchange_data(
     """Test fetching exchange data from the API."""
     org_repo, office_repo, rate_repo = mock_repositories
     org_repo.find_one_by.return_value = None
-    # Create a SyncService with the mock API connector
-    sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
-    sync_service.organization_repo = org_repo
-    sync_service.office_repo = office_repo
-    sync_service.rate_repo = rate_repo
-    sync_service.schedule_repo = mock_schedule_repo
+
+    # Create a DataFetcher with the mock API connector
+    data_fetcher = DataFetcher(api_connector=mock_api_connector)
 
     # Call the fetch_exchange_data method
-    result = await sync_service.fetch_exchange_data()
+    result = await data_fetcher.fetch_exchange_data()
 
     # Verify the API connector was called with the expected parameters
     mock_api_connector.get_exchange_rates.assert_called_once_with(
@@ -251,15 +249,12 @@ async def test_fetch_map_data(
     """Test fetching map data from the API."""
     org_repo, office_repo, rate_repo = mock_repositories
     org_repo.find_one_by.return_value = None
-    # Create a SyncService with the mock API connector
-    sync_service = SyncService(db_session=db_session, api_connector=mock_api_connector)
-    sync_service.organization_repo = org_repo
-    sync_service.office_repo = office_repo
-    sync_service.rate_repo = rate_repo
-    sync_service.schedule_repo = mock_schedule_repo
+
+    # Create a DataFetcher with the mock API connector
+    data_fetcher = DataFetcher(api_connector=mock_api_connector)
 
     # Call the fetch_map_data method
-    result = await sync_service.fetch_map_data()
+    result = await data_fetcher.fetch_map_data()
 
     # Verify the API connector was called with the expected parameters
     mock_api_connector.get_office_coordinates.assert_called_once_with(
@@ -315,6 +310,8 @@ async def test_sync_data(
     org_repo, office_repo, rate_repo = mock_repositories
     org_repo.find_one_by.return_value = None
     office_repo.find_one_by.return_value = None
+
+    # Create a SyncService with the mock session and API connector
     sync_service = SyncService(
         db_session=mock_session, api_connector=mock_api_connector
     )
@@ -355,6 +352,8 @@ async def test_process_organizations_and_offices(
     org_repo, office_repo, rate_repo = mock_repositories
     org_repo.find_one_by.return_value = None
     office_repo.find_one_by.return_value = None
+
+    # Create a SyncService with the mock session and API connector
     sync_service = SyncService(
         db_session=mock_session, api_connector=mock_api_connector
     )
@@ -389,7 +388,7 @@ async def test_sync_exchange_data():
     """Test that the sync_exchange_data function runs without errors."""
     # Mock the SyncService.sync_data method to avoid making real API calls
     with patch("src.services.sync_service.SyncService.sync_data") as mock_sync_data:
-        mock_sync_data.return_value = {
+        expected_stats = {
             "organizations_created": 1,
             "organizations_updated": 0,
             "offices_created": 1,
@@ -397,13 +396,23 @@ async def test_sync_exchange_data():
             "offices_deactivated": 0,
             "rates_created": 1,
             "rates_updated": 0,
+            "schedules_created": 0,
+            "schedules_updated": 0,
         }
+        mock_sync_data.return_value = expected_stats
 
-        # Call the function
-        await sync_exchange_data()
+        # Call the function with custom parameters
+        result = await sync_exchange_data(
+            city="batumi", include_online=False, availability="Working"
+        )
 
-        # Verify the SyncService.sync_data method was called
-        mock_sync_data.assert_called_once()
+        # Verify the SyncService.sync_data method was called with the correct parameters
+        mock_sync_data.assert_called_once_with(
+            city="batumi", include_online=False, availability="Working"
+        )
+
+        # Verify the function returns the expected stats
+        assert result == expected_stats
 
 
 @pytest.mark.asyncio
