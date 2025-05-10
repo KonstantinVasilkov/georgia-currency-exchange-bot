@@ -408,7 +408,10 @@ class SyncService:
             raise
 
     async def _upsert_nbg_organization_and_rates(
-        self, best_rates: Dict[str, Any], stats: SyncStats, timestamp: Optional[datetime] = None
+        self,
+        best_rates: Dict[str, Any],
+        stats: SyncStats,
+        timestamp: Optional[datetime] = None,
     ) -> Organization:
         """
         Upsert NBG organization, office, and rates from the best field of the API response.

@@ -135,8 +135,11 @@ class CurrencyService:
         Returns:
             List of dicts with organization name and calculated rate.
         """
+
         # Helper to calculate effective rate for a pair via GEL
-        def calculate_pair_rate(rates: dict[str, Any], sell: str, get: str) -> float | None:
+        def calculate_pair_rate(
+            rates: dict[str, Any], sell: str, get: str
+        ) -> float | None:
             # If direct GEL pair
             if sell == "GEL":
                 # User sells GEL, wants to buy get_currency: use sell_rate for get_currency
@@ -150,7 +153,12 @@ class CurrencyService:
                 # Cross: sell -> GEL -> get
                 rate_sell = rates.get(sell)
                 rate_get = rates.get(get)
-                if rate_sell and rate_sell["buy_rate"] and rate_get and rate_get["sell_rate"]:
+                if (
+                    rate_sell
+                    and rate_sell["buy_rate"]
+                    and rate_get
+                    and rate_get["sell_rate"]
+                ):
                     gel_amount = rate_sell["buy_rate"]  # sell_currency -> GEL
                     return gel_amount / rate_get["sell_rate"]  # GEL -> get_currency
                 return None
@@ -181,13 +189,18 @@ class CurrencyService:
             # Build a dict: currency -> {buy_rate, sell_rate}
             rate_map = {}
             for r in rates:
-                rate_map[r.currency] = {"buy_rate": r.buy_rate, "sell_rate": r.sell_rate}
+                rate_map[r.currency] = {
+                    "buy_rate": r.buy_rate,
+                    "sell_rate": r.sell_rate,
+                }
             eff_rate = calculate_pair_rate(rate_map, sell_currency, get_currency)
             if eff_rate is not None:
-                results.append({
-                    "organization": org_name,
-                    "rate": eff_rate,
-                })
+                results.append(
+                    {
+                        "organization": org_name,
+                        "rate": eff_rate,
+                    }
+                )
 
         # 2. Top 5 from other orgs (exclude NBG, Online)
         all_orgs = await self.organization_repo.get_active_organizations()
@@ -204,13 +217,18 @@ class CurrencyService:
             rates = await self.rate_repo.get_rates_by_office(office.id, limit=10)
             rate_map = {}
             for r in rates:
-                rate_map[r.currency] = {"buy_rate": r.buy_rate, "sell_rate": r.sell_rate}
+                rate_map[r.currency] = {
+                    "buy_rate": r.buy_rate,
+                    "sell_rate": r.sell_rate,
+                }
             eff_rate = calculate_pair_rate(rate_map, sell_currency, get_currency)
             if eff_rate is not None:
-                candidates.append({
-                    "organization": org.name,
-                    "rate": eff_rate,
-                })
+                candidates.append(
+                    {
+                        "organization": org.name,
+                        "rate": eff_rate,
+                    }
+                )
         # Only keep candidates with a float rate
         candidates = [c for c in candidates if isinstance(c["rate"], float)]
         candidates.sort(key=lambda x: x["rate"], reverse=True)

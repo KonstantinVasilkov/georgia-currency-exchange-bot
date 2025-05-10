@@ -13,11 +13,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup: The main menu keyboard.
     """
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(
-            text="Best Rates", callback_data="best_rates"
-        )
-    )
+    builder.row(InlineKeyboardButton(text="Best Rates", callback_data="best_rates"))
     builder.row(
         InlineKeyboardButton(
             text="Best rates between currencies", callback_data="best_rates_between"

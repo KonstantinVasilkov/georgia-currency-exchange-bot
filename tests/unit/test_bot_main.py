@@ -54,7 +54,9 @@ async def test_start_bot(mock_bot: MagicMock, mock_dispatcher: MagicMock) -> Non
     with (
         patch("src.start_bot.Bot", return_value=mock_bot),
         patch("src.start_bot.Dispatcher", return_value=mock_dispatcher),
-        patch("src.start_bot.MemoryStorage", return_value=MagicMock(spec=MemoryStorage)),
+        patch(
+            "src.start_bot.MemoryStorage", return_value=MagicMock(spec=MemoryStorage)
+        ),
     ):
         # Call start_bot
         await start_bot()
@@ -78,7 +80,9 @@ async def test_start_bot_error_handling(
     with (
         patch("src.start_bot.Bot", return_value=mock_bot),
         patch("src.start_bot.Dispatcher", return_value=mock_dispatcher),
-        patch("src.start_bot.MemoryStorage", return_value=MagicMock(spec=MemoryStorage)),
+        patch(
+            "src.start_bot.MemoryStorage", return_value=MagicMock(spec=MemoryStorage)
+        ),
     ):
         # Make start_polling raise an exception
         mock_dispatcher.start_polling.side_effect = Exception("Test error")

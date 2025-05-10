@@ -38,8 +38,7 @@ async def handle_best_rates(callback: CallbackQuery) -> None:
         await callback.message.edit_text(
             text="Which currency do you want to sell?",
             reply_markup=get_currency_selection_keyboard(
-                currencies=AVAILABLE_BOT_CURRENCIES,
-                callback_prefix="sell_currency"
+                currencies=AVAILABLE_BOT_CURRENCIES, callback_prefix="sell_currency"
             ),
         )
 
@@ -149,15 +148,55 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "main_menu")
 async def handle_main_menu(callback: CallbackQuery) -> None:
-    """Handle the main menu request.
-
-    Args:
-        callback: The callback query.
-    """
+    """Handle the main menu request."""
     if callback.message is not None and isinstance(callback.message, Message):
+        # Fetch rates for NBG and online banks
+        async with async_get_db_session() as session:
+            org_repo = AsyncOrganizationRepository(session=session)
+            office_repo = AsyncOfficeRepository(session=session)
+            rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+            service = CurrencyService(
+                organization_repo=org_repo,
+                office_repo=office_repo,
+                rate_repo=rate_repo,
+            )
+            rows = await service.get_latest_rates_table()
+
+        # Format table
+        name_width = 15
+        header = f"{'Organization':<{name_width}} | {'USD':>7} | {'EUR':>7} | {'RUB':>7}"
+        sep = "─" * (name_width + 3 + 9 + 3 + 9 + 3 + 9)
+        lines = [header, sep]
+        for row in rows[:4]:  # NBG + 3 online banks
+            org = row.organization
+            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
+            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
+            rub = f"{row.rub:.4f}" if row.rub is not None else "-"
+            lines.append(f"{org:<{name_width}} | {usd:>7} | {eur:>7} | {rub:>7}")
+        table_str = "\n".join(lines)
+
+        # Find the latest timestamp from the rows (if available)
+        latest_ts = None
+        for row in rows:
+            for val in (row.usd, row.eur, row.rub):
+                if hasattr(val, 'timestamp') and val.timestamp:
+                    if latest_ts is None or val.timestamp > latest_ts:
+                        latest_ts = val.timestamp
+        # Fallback: just use current UTC time if not available
+        if latest_ts is None:
+            from datetime import datetime, UTC, timedelta
+            latest_ts = datetime.now(UTC)
+        # Convert to GMT+4
+        gmt4_offset = timedelta(hours=4)
+        latest_ts_gmt4 = latest_ts.astimezone(UTC) + gmt4_offset
+        last_update_str = latest_ts_gmt4.strftime("%Y-%m-%d %H:%M") + " (GMT+4)"
+
+        welcome = f"Welcome to the Currency Exchange Bot!\nLatest rates for the {last_update_str}:"
+        prompt = "\nPlease select an option:"
         await callback.message.edit_text(
-            text="Welcome to the Currency Exchange Bot! Please select an option:",
+            text=f"{welcome}\n<pre>{table_str}</pre>{prompt}",
             reply_markup=get_main_menu_keyboard(),
+            parse_mode="HTML",
         )
 
 
@@ -172,8 +211,7 @@ async def handle_sell_currency_selection(callback: CallbackQuery) -> None:
         await callback.message.edit_text(
             text=f"Selected {sell_currency}. What currency do you want to get?",
             reply_markup=get_currency_selection_keyboard(
-                currencies=options,
-                callback_prefix="get_currency"
+                currencies=options, callback_prefix="get_currency"
             ),
         )
 
@@ -189,7 +227,10 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
     if callback.message and callback.message.text:
         # Message text is like: 'Selected USD. What currency do you want to get?'
         import re
-        match = re.match(r"Selected (\w+). What currency do you want to get\?", callback.message.text)
+
+        match = re.match(
+            r"Selected (\w+). What currency do you want to get\?", callback.message.text
+        )
         if match:
             sell_currency = match.group(1)
     if not sell_currency:
@@ -205,7 +246,9 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
             office_repo=office_repo,
             rate_repo=rate_repo,
         )
-        rates = await service.get_best_rates_for_pair(sell_currency=sell_currency, get_currency=get_currency)
+        rates = await service.get_best_rates_for_pair(
+            sell_currency=sell_currency, get_currency=get_currency
+        )
 
     # Collect timestamps for all rates (if available)
     # We'll need to fetch the actual Rate objects for each org/office
@@ -226,7 +269,10 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
             # Find the rate for the sell_currency (buy) or get_currency (sell)
             rate_objs = await rate_repo.get_rates_by_office(office.id, limit=10)
             for rate_obj in rate_objs:
-                if rate_obj.currency == sell_currency or rate_obj.currency == get_currency:
+                if (
+                    rate_obj.currency == sell_currency
+                    or rate_obj.currency == get_currency
+                ):
                     if hasattr(rate_obj, "timestamp") and rate_obj.timestamp:
                         timestamps.append(rate_obj.timestamp)
 
@@ -268,7 +314,7 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
     }
 
     def trim_name(name: str, width: int = 15) -> str:
-        return name if len(name) <= width else name[:width-1] + '…'
+        return name if len(name) <= width else name[: width - 1] + "…"
 
     if not rates:
         response = f"No rates available for {sell_currency} → {get_currency}."
@@ -283,13 +329,15 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         online_rows = []
         other_rows = []
         for r in rates:
-            org = r['organization']
+            org = r["organization"]
             display_org = org_name_map.get(org, org)
             display_org = trim_name(display_org, name_width)
             rate_str = f"{r['rate']:.4f}"
             if display_org == "NBG[official]":
                 nbg_row = f"{display_org:<{name_width}} | {rate_str:>10}"
-            elif display_org in org_name_map.values() and display_org != "NBG[official]":
+            elif (
+                display_org in org_name_map.values() and display_org != "NBG[official]"
+            ):
                 online_rows.append(f"{display_org:<{name_width}} | {rate_str:>10}")
             else:
                 other_rows.append(f"{display_org:<{name_width}} | {rate_str:>10}")
@@ -301,7 +349,7 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
             lines.append(sep)
         if other_rows:
             lines.extend(other_rows)
-        table_str = '\n'.join(lines)
+        table_str = "\n".join(lines)
         # Add last update info
         last_update_line = f"Last rate update: {last_update_str}"
         # Add warning if outdated

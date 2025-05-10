@@ -13,7 +13,6 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy import text, inspect
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
-import asyncio
 
 
 # Configure pytest-asyncio

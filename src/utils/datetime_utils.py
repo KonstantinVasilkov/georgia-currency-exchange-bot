@@ -3,6 +3,7 @@ Datetime utility functions for timezone handling.
 
 Provides helpers to ensure all datetimes are UTC-aware.
 """
+
 from datetime import datetime, UTC
 from typing import Any
 
@@ -32,4 +33,4 @@ def to_utc(dt: Any) -> datetime:
         # Assume naive datetimes are in local time, convert to UTC
         # If you want to assume naive datetimes are UTC, just use dt.replace(tzinfo=UTC)
         return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC) 
+    return dt.astimezone(UTC)
