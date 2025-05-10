@@ -22,64 +22,24 @@ router = Router(name="currency_router")
 # Available currencies - this should come from a service in the future
 AVAILABLE_CURRENCIES = ["USD", "EUR", "GBP", "TRY", "RUB"]
 
+# New available currencies including 'GEL'
+AVAILABLE_BOT_CURRENCIES = ["USD", "EUR", "GBP", "RUB", "GEL"]
+
 logger = get_logger(__name__)
 
 
-@router.callback_query(F.data == "best_rates_to_gel")
-async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
+@router.callback_query(F.data == "best_rates")
+async def handle_best_rates(callback: CallbackQuery) -> None:
     """
-    Handle the best rates to GEL request by fetching real data from the database.
-    Args:
-        callback: The callback query.
+    Start the best rates flow: ask which currency the user wants to sell.
     """
-    # Dependency injection: create repositories and service
-    async with async_get_db_session() as session:
-        org_repo = AsyncOrganizationRepository(session=session)
-        office_repo = AsyncOfficeRepository(session=session)
-        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
-        service = CurrencyService(
-            organization_repo=org_repo,
-            office_repo=office_repo,
-            rate_repo=rate_repo,
-        )
-        try:
-            rows = await service.get_latest_rates_table()
-        except Exception as exc:
-            logger.warning(f"Failed to fetch rates: {exc}")
-            rows = []
-    # Format as pretty table in monospace (Telegram code block)
-    if not rows:
-        response = "No rates available."
-    else:
-        # Prepare pretty table (single line per org)
-        header = (
-            f"{'🏦 Organization':<14} │ {'🇺🇸 USD':>7} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>7}"
-        )
-        sep = "─" * len(header)
-        lines = [header, sep]
-        nbg_line = f"{rows[0].organization:<15} │ {rows[0].usd:>8} │ {rows[0].eur:>8} │ {rows[0].rub:>8}"
-        lines.append(nbg_line)
-        lines.append(sep)
-        for row in rows[1:4]:
-            org = row.organization if row.organization else "-"
-            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
-            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
-            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
-            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
-        lines.append(sep)
-        for row in rows[4:]:
-            org = row.organization if row.organization else "-"
-            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
-            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
-            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
-            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
-        table = "\n".join(lines)
-        response = f"<pre>{table}</pre>"
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
-            text=response,
-            reply_markup=get_back_to_main_menu_keyboard(),
-            parse_mode="HTML",
+            text="Which currency do you want to sell?",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=AVAILABLE_BOT_CURRENCIES,
+                callback_prefix="sell_currency"
+            ),
         )
 
 
@@ -197,4 +157,114 @@ async def handle_main_menu(callback: CallbackQuery) -> None:
         await callback.message.edit_text(
             text="Welcome to the Currency Exchange Bot! Please select an option:",
             reply_markup=get_main_menu_keyboard(),
+        )
+
+
+@router.callback_query(F.data.startswith("sell_currency:"))
+async def handle_sell_currency_selection(callback: CallbackQuery) -> None:
+    """
+    Handle the sell currency selection and ask for the currency to get.
+    """
+    sell_currency = callback.data.split(":")[1] if callback.data else ""
+    options = [c for c in AVAILABLE_BOT_CURRENCIES if c != sell_currency]
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=f"Selected {sell_currency}. What currency do you want to get?",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=options,
+                callback_prefix="get_currency"
+            ),
+        )
+
+
+@router.callback_query(F.data.startswith("get_currency:"))
+async def handle_get_currency_selection(callback: CallbackQuery) -> None:
+    """
+    Handle the get currency selection and show best rates.
+    """
+    get_currency = callback.data.split(":")[1] if callback.data else ""
+    # Try to extract the sell currency from the previous message text
+    sell_currency = None
+    if callback.message and callback.message.text:
+        # Message text is like: 'Selected USD. What currency do you want to get?'
+        import re
+        match = re.match(r"Selected (\w+). What currency do you want to get\?", callback.message.text)
+        if match:
+            sell_currency = match.group(1)
+    if not sell_currency:
+        sell_currency = "USD"  # fallback for now
+
+    # Fetch best rates for the selected pair
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        office_repo = AsyncOfficeRepository(session=session)
+        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        service = CurrencyService(
+            organization_repo=org_repo,
+            office_repo=office_repo,
+            rate_repo=rate_repo,
+        )
+        rates = await service.get_best_rates_for_pair(sell_currency=sell_currency, get_currency=get_currency)
+
+    # Emoji map for currencies
+    currency_emoji = {
+        "USD": "🇺🇸",
+        "EUR": "🇪🇺",
+        "GBP": "🇬🇧",
+        "RUB": "🇷🇺",
+        "GEL": "🇬🇪",
+    }
+    pair_emoji = f"{currency_emoji.get(sell_currency, sell_currency)} → {currency_emoji.get(get_currency, get_currency)}"
+
+    # Org name mapping for online banks and NBG
+    org_name_map = {
+        "mBank": "BoG[online]",
+        "TBC mobile": "TBC[online]",
+        "MyCredo": "Credo[online]",
+        "National Bank of Georgia": "NBG[official]",
+        "NBG": "NBG[official]",
+    }
+
+    def trim_name(name: str, width: int = 15) -> str:
+        return name if len(name) <= width else name[:width-1] + '…'
+
+    if not rates:
+        response = f"No rates available for {sell_currency} → {get_currency}."
+    else:
+        # Table header
+        name_width = 15
+        header = f"{pair_emoji}\n{'Organization':<{name_width}} | {'Rate':>10}"
+        sep = "─" * (name_width + 3 + 10)
+        lines = [header, sep]
+        # NBG row (always first if present)
+        nbg_row = None
+        online_rows = []
+        other_rows = []
+        for r in rates:
+            org = r['organization']
+            display_org = org_name_map.get(org, org)
+            display_org = trim_name(display_org, name_width)
+            rate_str = f"{r['rate']:.4f}"
+            if display_org == "NBG[official]":
+                nbg_row = f"{display_org:<{name_width}} | {rate_str:>10}"
+            elif display_org in org_name_map.values() and display_org != "NBG[official]":
+                online_rows.append(f"{display_org:<{name_width}} | {rate_str:>10}")
+            else:
+                other_rows.append(f"{display_org:<{name_width}} | {rate_str:>10}")
+        if nbg_row:
+            lines.append(nbg_row)
+            lines.append(sep)
+        if online_rows:
+            lines.extend(online_rows)
+            lines.append(sep)
+        if other_rows:
+            lines.extend(other_rows)
+        table_str = '\n'.join(lines)
+        response = f"<pre>{table_str}</pre>"
+
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=response,
+            reply_markup=get_back_to_main_menu_keyboard(),
+            parse_mode="HTML",
         )

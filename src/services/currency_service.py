@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Sequence, TypedDict
 from pydantic import BaseModel
 from src.repositories.organization_repository import AsyncOrganizationRepository
 from src.repositories.office_repository import AsyncOfficeRepository
@@ -10,6 +10,11 @@ class RateRow(BaseModel):
     usd: float | None = None
     eur: float | None = None
     rub: float | None = None
+
+
+class BestRateResult(TypedDict):
+    organization: str
+    rate: float
 
 
 class CurrencyService:
@@ -112,3 +117,102 @@ class CurrencyService:
             elif rate.currency == "RUB":
                 rub = rate.buy_rate
         return RateRow(organization=org_name, usd=usd, eur=eur, rub=rub)
+
+    async def get_best_rates_for_pair(
+        self, sell_currency: str, get_currency: str
+    ) -> list[BestRateResult]:
+        """
+        Get the best rates for a given currency pair, following business rules:
+        - Always include NBG, mBank, TBC mobile, MyCredo.
+        - For each, calculate the rate for the selected pair (using GEL as intermediary if needed).
+        - For the top 5, exclude NBG and all orgs of type "Online", and only include orgs with both rates needed.
+        - Sort by the best first-step rate for the user.
+
+        Args:
+            sell_currency: The currency the user wants to sell.
+            get_currency: The currency the user wants to get.
+
+        Returns:
+            List of dicts with organization name and calculated rate.
+        """
+        # Helper to calculate effective rate for a pair via GEL
+        def calculate_pair_rate(rates: dict[str, Any], sell: str, get: str) -> float | None:
+            # If direct GEL pair
+            if sell == "GEL":
+                # User sells GEL, wants to buy get_currency: use sell_rate for get_currency
+                rate = rates.get(get)
+                return 1 / rate["sell_rate"] if rate and rate["sell_rate"] else None
+            elif get == "GEL":
+                # User sells sell_currency, wants GEL: use buy_rate for sell_currency
+                rate = rates.get(sell)
+                return rate["buy_rate"] if rate and rate["buy_rate"] else None
+            else:
+                # Cross: sell -> GEL -> get
+                rate_sell = rates.get(sell)
+                rate_get = rates.get(get)
+                if rate_sell and rate_sell["buy_rate"] and rate_get and rate_get["sell_rate"]:
+                    gel_amount = rate_sell["buy_rate"]  # sell_currency -> GEL
+                    return gel_amount / rate_get["sell_rate"]  # GEL -> get_currency
+                return None
+
+        # 1. Always include NBG, mBank, TBC mobile, MyCredo
+        always_include = [
+            ("National Bank of Georgia", "NBG"),
+            ("mBank", None),
+            ("TBC mobile", None),
+            ("MyCredo", None),
+        ]
+        results: list[BestRateResult] = []
+        shown_org_ids = set()
+        for org_name, ext_ref in always_include:
+            org = None
+            if ext_ref:
+                org = await self.organization_repo.find_one_by(external_ref_id=ext_ref)
+            else:
+                org = await self.organization_repo.find_one_by(name=org_name)
+            if not org or not org.is_active:
+                continue
+            shown_org_ids.add(org.id)
+            offices = await self.office_repo.get_by_organization(org.id)
+            if not offices:
+                continue
+            office = offices[0]
+            rates = await self.rate_repo.get_rates_by_office(office.id, limit=10)
+            # Build a dict: currency -> {buy_rate, sell_rate}
+            rate_map = {}
+            for r in rates:
+                rate_map[r.currency] = {"buy_rate": r.buy_rate, "sell_rate": r.sell_rate}
+            eff_rate = calculate_pair_rate(rate_map, sell_currency, get_currency)
+            if eff_rate is not None:
+                results.append({
+                    "organization": org_name,
+                    "rate": eff_rate,
+                })
+
+        # 2. Top 5 from other orgs (exclude NBG, Online)
+        all_orgs = await self.organization_repo.get_active_organizations()
+        candidates: list[BestRateResult] = []
+        for org in all_orgs:
+            if org.id in shown_org_ids:
+                continue
+            if getattr(org, "type", None) == "Online":
+                continue
+            offices = await self.office_repo.get_by_organization(org.id)
+            if not offices:
+                continue
+            office = offices[0]
+            rates = await self.rate_repo.get_rates_by_office(office.id, limit=10)
+            rate_map = {}
+            for r in rates:
+                rate_map[r.currency] = {"buy_rate": r.buy_rate, "sell_rate": r.sell_rate}
+            eff_rate = calculate_pair_rate(rate_map, sell_currency, get_currency)
+            if eff_rate is not None:
+                candidates.append({
+                    "organization": org.name,
+                    "rate": eff_rate,
+                })
+        # Only keep candidates with a float rate
+        candidates = [c for c in candidates if isinstance(c["rate"], float)]
+        candidates.sort(key=lambda x: x["rate"], reverse=True)
+        results.extend(candidates[:5])
+        return results

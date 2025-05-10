@@ -15,7 +15,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="Best rates to GEL", callback_data="best_rates_to_gel"
+            text="Best Rates", callback_data="best_rates"
         )
     )
     builder.row(
