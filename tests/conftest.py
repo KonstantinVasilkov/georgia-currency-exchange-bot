@@ -7,7 +7,7 @@ This file contains global pytest configuration that affects the entire test suit
 import logging
 import pytest
 import pytest_asyncio
-from src.tests.mocks.api_mocks import *  # noqa
+from tests.mocks.api_mocks import *  # noqa
 from sqlmodel import SQLModel
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import text, inspect

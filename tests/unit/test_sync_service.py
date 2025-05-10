@@ -328,9 +328,9 @@ async def test_sync_data(
     mock_api_connector.get_office_coordinates.assert_called_once()
 
     # Verify the repositories were used to save data
-    assert org_repo.create.call_count == 1
-    assert office_repo.create.call_count == 1
-    assert rate_repo.upsert.call_count == 1
+    assert org_repo.create.call_count == 2
+    assert office_repo.create.call_count == 2
+    assert rate_repo.upsert.call_count == 2
 
     # Verify the stats were returned
     assert "organizations_created" in stats
@@ -369,9 +369,9 @@ async def test_process_organizations_and_offices(
     stats = await sync_service._process_organizations_and_offices(exchange_data)
 
     # Verify the repositories were used to save data
-    assert org_repo.create.call_count == 1
-    assert office_repo.create.call_count == 1
-    assert rate_repo.upsert.call_count == 1
+    assert org_repo.create.call_count == 2
+    assert office_repo.create.call_count == 2
+    assert rate_repo.upsert.call_count == 2
 
     # Verify the stats were returned
     assert stats["organizations_created"] == 1

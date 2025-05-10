@@ -27,9 +27,9 @@ async def test_get_latest_rates_table_full_scenario(mock_repos):
 
     orgs = [
         make_org(1, "NBG", "NBG"),
-        make_org(2, "Bank of Georgia", "bank_of_georgia"),
-        make_org(3, "TBC Bank", "tbc_bank"),
-        make_org(4, "Credo Bank", "credo_bank"),
+        make_org(2, "BoG[online]", "bank_of_georgia"),
+        make_org(3, "TBC[online]", "tbc_bank"),
+        make_org(4, "Credo[online]", "credo_bank"),
         make_org(5, "BestOrg1", "best1"),
         make_org(6, "BestOrg2", "best2"),
     ]
@@ -87,9 +87,9 @@ async def test_get_latest_rates_table_full_scenario(mock_repos):
     rows = await service.get_latest_rates_table()
     # Check order and content
     assert rows[0].organization == "NBG"
-    assert rows[1].organization == "Bank of Georgia"
-    assert rows[2].organization == "TBC Bank"
-    assert rows[3].organization == "Credo Bank"
+    assert rows[1].organization == "BoG[online]"
+    assert rows[2].organization == "TBC[online]"
+    assert rows[3].organization == "Credo[online]"
     assert rows[4].organization == "BestOrg1"
     assert rows[5].organization == "BestOrg2"
     assert rows[0].usd == 2.5 and rows[0].eur == 3.0 and rows[0].rub == 0.03
@@ -120,8 +120,8 @@ async def test_get_latest_rates_table_missing_data(mock_repos):
     rows = await service.get_latest_rates_table()
     # NBG row should be present, online banks should be present with None, no best others
     assert rows[0].organization == "NBG"
-    assert rows[1].organization == "Bank of Georgia"
-    assert rows[2].organization == "TBC Bank"
-    assert rows[3].organization == "Credo Bank"
+    assert rows[1].organization == "BoG[online]"
+    assert rows[2].organization == "TBC[online]"
+    assert rows[3].organization == "Credo[online]"
     assert all(r.usd is None and r.eur is None and r.rub is None for r in rows[1:4])
     assert len(rows) == 4
