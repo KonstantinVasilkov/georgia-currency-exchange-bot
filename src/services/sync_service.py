@@ -113,6 +113,9 @@ class DataFetcher:
 
         await self.ensure_api_connector()
 
+        if self.api_connector is None:
+            raise RuntimeError("API connector is not initialized.")
+
         try:
             # Fetch data from the API
             response_data = await self.api_connector.get_exchange_rates(
@@ -152,6 +155,9 @@ class DataFetcher:
 
         await self.ensure_api_connector()
 
+        if self.api_connector is None:
+            raise RuntimeError("API connector is not initialized.")
+
         try:
             # Fetch data from the API
             response_data = await self.api_connector.get_office_coordinates(
@@ -188,7 +194,10 @@ class SyncService:
         """
         logger.info(f"[SyncService] Initialized with db_session: {db_session}")
         self.session = db_session
-        self.data_fetcher = DataFetcher(api_connector)
+        if api_connector is not None:
+            self.data_fetcher = DataFetcher(api_connector)
+        else:
+            self.data_fetcher = DataFetcher()
         self.organization_repo = AsyncOrganizationRepository(session=self.session)
         self.office_repo = AsyncOfficeRepository(session=self.session)
         self.rate_repo = AsyncRateRepository(session=self.session, model_class=Rate)
@@ -398,13 +407,14 @@ class SyncService:
             raise
 
     async def _upsert_nbg_organization_and_rates(
-        self, best_rates: Dict[str, Any], timestamp: Optional[datetime] = None
+        self, best_rates: Dict[str, Any], stats: SyncStats, timestamp: Optional[datetime] = None
     ) -> Organization:
         """
         Upsert NBG organization, office, and rates from the best field of the API response.
 
         Args:
             best_rates: The 'best' field from the API response.
+            stats: The statistics object to update.
             timestamp: The timestamp to use for the rates (default: now).
 
         Returns:
@@ -429,6 +439,7 @@ class SyncService:
                         "is_active": True,
                     }
                 )
+                stats.organizations_created += 1
 
             # Find or create NBG office
             office = await self.office_repo.find_one_by(external_ref_id=NBG_OFFICE_REF)
@@ -445,6 +456,7 @@ class SyncService:
                         "is_active": True,
                     }
                 )
+                stats.offices_created += 1
 
             # Upsert rates for each currency
             rate_count = 0
@@ -531,7 +543,7 @@ class SyncService:
         # Handle virtual office for online banks
         if org.type == "Online" and not offices_to_process:
             virtual_office_data = await self._create_virtual_office_data(
-                organization_id=org.id, external_ref_id=org.external_ref_id
+                organization_id=org.id, external_ref_id=str(org.external_ref_id)
             )
             if virtual_office_data:
                 offices_to_process.append(virtual_office_data)
@@ -623,6 +635,7 @@ class SyncService:
             # Upsert NBG organization, office, and rates
             nbg_org = await self._upsert_nbg_organization_and_rates(
                 best_rates=exchange_data.best,
+                stats=stats,
             )
             active_org_ids.add(nbg_org.id)
 

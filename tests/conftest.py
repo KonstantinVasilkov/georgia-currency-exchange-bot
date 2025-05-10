@@ -68,7 +68,7 @@ def drop_all_tables(engine):
         conn.commit()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def async_test_engine():
     engine = create_async_engine(
         "sqlite+aiosqlite:///file:memdb1?mode=memory&cache=shared&uri=true",
@@ -101,11 +101,3 @@ async def cleanup_tables(async_test_engine):
         await conn.execute(text("DELETE FROM rate"))
         await conn.execute(text("DELETE FROM office"))
         await conn.execute(text("DELETE FROM organization"))
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the session scope."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
