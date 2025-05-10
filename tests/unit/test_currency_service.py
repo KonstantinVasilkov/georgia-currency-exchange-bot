@@ -150,7 +150,16 @@ async def test_get_best_rates_for_pair_usd_to_gel(mock_repos):
         make_org(6, "BestOrg2", None),
     ]
     org_repo.find_one_by.side_effect = lambda **kwargs: next(
-        (o for o in orgs if (kwargs.get("external_ref_id") and o.external_ref_id == kwargs.get("external_ref_id")) or (kwargs.get("name") and o.name == kwargs.get("name"))), None
+        (
+            o
+            for o in orgs
+            if (
+                kwargs.get("external_ref_id")
+                and o.external_ref_id == kwargs.get("external_ref_id")
+            )
+            or (kwargs.get("name") and o.name == kwargs.get("name"))
+        ),
+        None,
     )
     org_repo.get_active_organizations.return_value = orgs
     office_repo.get_by_organization.side_effect = lambda org_id: [MagicMock(id=org_id)]
@@ -159,10 +168,17 @@ async def test_get_best_rates_for_pair_usd_to_gel(mock_repos):
     def make_rates(org_id):
         # All orgs have both USD and GEL
         return [
-            MagicMock(currency="USD", buy_rate=2.5 + org_id * 0.1, sell_rate=2.6 + org_id * 0.1),
+            MagicMock(
+                currency="USD",
+                buy_rate=2.5 + org_id * 0.1,
+                sell_rate=2.6 + org_id * 0.1,
+            ),
             MagicMock(currency="GEL", buy_rate=1.0, sell_rate=1.0),
         ]
-    rate_repo.get_rates_by_office.side_effect = lambda office_id, limit=10: make_rates(office_id)
+
+    rate_repo.get_rates_by_office.side_effect = lambda office_id, limit=10: make_rates(
+        office_id
+    )
 
     service = CurrencyService(org_repo, office_repo, rate_repo)
     results = await service.get_best_rates_for_pair("USD", "GEL")

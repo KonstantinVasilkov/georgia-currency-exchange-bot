@@ -58,16 +58,8 @@ async def handle_start(message: Message) -> None:
         lines.append(f"{org:<{name_width}} | {usd:>7} | {eur:>7} | {rub:>7}")
     table_str = "\n".join(lines)
 
-    # Find the latest timestamp from the rows (if available)
-    latest_ts = None
-    for row in rows:
-        for val in (row.usd, row.eur, row.rub):
-            if hasattr(val, 'timestamp') and val.timestamp:
-                if latest_ts is None or val.timestamp > latest_ts:
-                    latest_ts = val.timestamp
-    # Fallback: just use current UTC time if not available
-    if latest_ts is None:
-        latest_ts = datetime.now(UTC)
+    # Use current UTC time for latest_ts (no timestamp info in float values)
+    latest_ts = datetime.now(UTC)
     # Convert to GMT+4
     gmt4_offset = timedelta(hours=4)
     latest_ts_gmt4 = latest_ts.astimezone(UTC) + gmt4_offset

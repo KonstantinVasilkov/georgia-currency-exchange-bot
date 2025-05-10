@@ -1,7 +1,7 @@
 """Router for currency exchange functionality."""
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, Message as AiogramMessage
 from datetime import datetime, UTC, timedelta
 
 from src.bot.keyboards.inline import (
@@ -165,7 +165,7 @@ async def handle_main_menu(callback: CallbackQuery) -> None:
         # Format table
         name_width = 15
         header = f"{'Organization':<{name_width}} | {'USD':>7} | {'EUR':>7} | {'RUB':>7}"
-        sep = "─" * (name_width + 3 + 9 + 3 + 9 + 3 + 9)
+        sep = "─" * (name_width + 3 + 7 + 3 + 7 + 3 + 7)
         lines = [header, sep]
         for row in rows[:4]:  # NBG + 3 online banks
             org = row.organization
@@ -175,17 +175,8 @@ async def handle_main_menu(callback: CallbackQuery) -> None:
             lines.append(f"{org:<{name_width}} | {usd:>7} | {eur:>7} | {rub:>7}")
         table_str = "\n".join(lines)
 
-        # Find the latest timestamp from the rows (if available)
-        latest_ts = None
-        for row in rows:
-            for val in (row.usd, row.eur, row.rub):
-                if hasattr(val, 'timestamp') and val.timestamp:
-                    if latest_ts is None or val.timestamp > latest_ts:
-                        latest_ts = val.timestamp
-        # Fallback: just use current UTC time if not available
-        if latest_ts is None:
-            from datetime import datetime, UTC, timedelta
-            latest_ts = datetime.now(UTC)
+        # Use current UTC time for latest_ts (no timestamp info in float values)
+        latest_ts = datetime.now(UTC)
         # Convert to GMT+4
         gmt4_offset = timedelta(hours=4)
         latest_ts_gmt4 = latest_ts.astimezone(UTC) + gmt4_offset
@@ -224,12 +215,11 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
     get_currency = callback.data.split(":")[1] if callback.data else ""
     # Try to extract the sell currency from the previous message text
     sell_currency = None
-    if callback.message and callback.message.text:
+    if isinstance(callback.message, AiogramMessage) and callback.message.text:
         # Message text is like: 'Selected USD. What currency do you want to get?'
         import re
-
         match = re.match(
-            r"Selected (\w+). What currency do you want to get\?", callback.message.text
+            r"Selected (\w+). What currency do you want to get?", callback.message.text
         )
         if match:
             sell_currency = match.group(1)
@@ -257,9 +247,9 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         office_repo = AsyncOfficeRepository(session=session)
         rate_repo = AsyncRateRepository(session=session, model_class=Rate)
         for r in rates:
-            org_name = r["organization"]
-            # Find the org and its office
-            org = await org_repo.find_one_by(name=org_name)
+            org_name_obj = r["organization"]
+            org_name_str = str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            org = await org_repo.find_one_by(name=org_name_str)
             if not org:
                 continue
             offices = await office_repo.get_by_organization(org.id)
@@ -292,7 +282,12 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         latest_ts_gmt4 = latest_ts.astimezone(UTC) + gmt4_offset
         last_update_str = latest_ts_gmt4.strftime("%Y-%m-%d %H:%M") + " (GMT+4)"
     else:
-        return "No rates available. Please try again later."
+        if isinstance(callback.message, Message):  # type: ignore[attr-defined]
+            await callback.message.edit_text(
+                text=f"No rates available for {sell_currency} → {get_currency}.",
+                reply_markup=get_back_to_main_menu_keyboard(),
+            )
+        return
 
     # Emoji map for currencies
     currency_emoji = {
@@ -317,7 +312,12 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         return name if len(name) <= width else name[: width - 1] + "…"
 
     if not rates:
-        response = f"No rates available for {sell_currency} → {get_currency}."
+        if isinstance(callback.message, Message):  # type: ignore[attr-defined]
+            await callback.message.edit_text(
+                text=f"No rates available for {sell_currency} → {get_currency}.",
+                reply_markup=get_back_to_main_menu_keyboard(),
+            )
+        return
     else:
         # Table header
         name_width = 15
@@ -329,8 +329,9 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         online_rows = []
         other_rows = []
         for r in rates:
-            org = r["organization"]
-            display_org = org_name_map.get(org, org)
+            org_name_obj = r["organization"]
+            org_name_str = str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            display_org = org_name_map.get(org_name_str, org_name_str)
             display_org = trim_name(display_org, name_width)
             rate_str = f"{r['rate']:.4f}"
             if display_org == "NBG[official]":
@@ -358,7 +359,7 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
             warning = "<b>\u26a0\ufe0f Rates may be outdated! Please recheck on [myfin.ge](https://myfin.ge/)</b>\n"
         response = f"{warning}<pre>{table_str}\n{last_update_line}</pre>"
 
-    if callback.message is not None and isinstance(callback.message, Message):
+    if isinstance(callback.message, Message):  # type: ignore[attr-defined]
         await callback.message.edit_text(
             text=response,
             reply_markup=get_back_to_main_menu_keyboard(),
