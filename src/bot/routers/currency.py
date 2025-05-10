@@ -2,6 +2,7 @@
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
+from datetime import datetime, UTC, timedelta
 
 from src.bot.keyboards.inline import (
     get_main_menu_keyboard,
@@ -206,6 +207,47 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         )
         rates = await service.get_best_rates_for_pair(sell_currency=sell_currency, get_currency=get_currency)
 
+    # Collect timestamps for all rates (if available)
+    # We'll need to fetch the actual Rate objects for each org/office
+    timestamps = []
+    async with async_get_db_session() as session:
+        office_repo = AsyncOfficeRepository(session=session)
+        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        for r in rates:
+            org_name = r["organization"]
+            # Find the org and its office
+            org = await org_repo.find_one_by(name=org_name)
+            if not org:
+                continue
+            offices = await office_repo.get_by_organization(org.id)
+            if not offices:
+                continue
+            office = offices[0]
+            # Find the rate for the sell_currency (buy) or get_currency (sell)
+            rate_objs = await rate_repo.get_rates_by_office(office.id, limit=10)
+            for rate_obj in rate_objs:
+                if rate_obj.currency == sell_currency or rate_obj.currency == get_currency:
+                    if hasattr(rate_obj, "timestamp") and rate_obj.timestamp:
+                        timestamps.append(rate_obj.timestamp)
+
+    latest_ts = max(timestamps) if timestamps else None
+    now_utc = datetime.now(UTC)
+    outdated = False
+    if latest_ts:
+        # Ensure latest_ts is timezone-aware (assume UTC if naive)
+        if latest_ts.tzinfo is None or latest_ts.tzinfo.utcoffset(latest_ts) is None:
+            latest_ts = latest_ts.replace(tzinfo=UTC)
+        if (now_utc - latest_ts).total_seconds() > 3 * 3600:
+            outdated = True
+    # Format timestamp for display
+    if latest_ts:
+        # Convert to GMT+4
+        gmt4_offset = timedelta(hours=4)
+        latest_ts_gmt4 = latest_ts.astimezone(UTC) + gmt4_offset
+        last_update_str = latest_ts_gmt4.strftime("%Y-%m-%d %H:%M") + " (GMT+4)"
+    else:
+        return "No rates available. Please try again later."
+
     # Emoji map for currencies
     currency_emoji = {
         "USD": "🇺🇸",
@@ -260,7 +302,13 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         if other_rows:
             lines.extend(other_rows)
         table_str = '\n'.join(lines)
-        response = f"<pre>{table_str}</pre>"
+        # Add last update info
+        last_update_line = f"Last rate update: {last_update_str}"
+        # Add warning if outdated
+        warning = ""
+        if outdated:
+            warning = "<b>\u26a0\ufe0f Rates may be outdated! Please recheck on [myfin.ge](https://myfin.ge/)</b>\n"
+        response = f"{warning}<pre>{table_str}\n{last_update_line}</pre>"
 
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(

@@ -28,6 +28,7 @@ from src.utils.schedule_parser import parse_schedule
 from src.db.models.schedule import Schedule
 from src.db.models.office import Office
 from src.db.models.rate import Rate
+from src.utils.datetime_utils import to_utc
 
 logger = get_logger(__name__)
 
@@ -531,11 +532,7 @@ class SyncService:
         """
         Process offices for an organization.
 
-        Args:
-            org: The organization to process offices for.
-            org_data: The organization data from the API.
-            active_office_ids: Set of active office IDs to update.
-            stats: The statistics object to update.
+        Ensures all rate timestamps are stored as UTC-aware datetimes.
         """
         # Get offices to process
         offices_to_process = list(org_data.offices)
@@ -606,7 +603,7 @@ class SyncService:
                         currency=currency,
                         buy_rate=rate_data.buy,
                         sell_rate=rate_data.sell,
-                        timestamp=rate_data.time,
+                        timestamp=to_utc(rate_data.time),
                         stats=stats,
                     )
             except Exception as e:
