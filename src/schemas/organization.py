@@ -12,3 +12,4 @@ class OrganizationBase(SQLModel):
     description: Optional[str] = None
     website: Optional[str] = None
     logo_url: Optional[str] = None
+    type: Optional[str] = None

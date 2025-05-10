@@ -53,7 +53,7 @@ class AsyncOrganizationRepository(AsyncBaseRepository[Organization]):
     async def upsert(self, org_data: dict) -> Organization:
         existing_org = await self.find_one_by(name=org_data.get("name"))
         if existing_org:
-            org_data["updated_at"] = datetime.utcnow()
+            org_data["updated_at"] = datetime.now(tz=UTC)
             return await self.update(db_obj=existing_org, obj_in=org_data)
         else:
             return await self.create(obj_in=org_data)

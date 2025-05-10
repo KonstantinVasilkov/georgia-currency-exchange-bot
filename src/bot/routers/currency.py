@@ -9,33 +9,77 @@ from src.bot.keyboards.inline import (
     get_organization_keyboard,
     get_back_to_main_menu_keyboard,
 )
+from src.services.currency_service import CurrencyService
+from src.repositories.organization_repository import AsyncOrganizationRepository
+from src.repositories.office_repository import AsyncOfficeRepository
+from src.repositories.rate_repository import AsyncRateRepository
+from src.config.logging_conf import get_logger
+from src.db.session import async_get_db_session
+from src.db.models.rate import Rate
 
 router = Router(name="currency_router")
 
 # Available currencies - this should come from a service in the future
 AVAILABLE_CURRENCIES = ["USD", "EUR", "GBP", "TRY", "RUB"]
 
+logger = get_logger(__name__)
+
 
 @router.callback_query(F.data == "best_rates_to_gel")
 async def handle_best_rates_to_gel(callback: CallbackQuery) -> None:
-    """Handle the best rates to GEL request.
-
+    """
+    Handle the best rates to GEL request by fetching real data from the database.
     Args:
         callback: The callback query.
     """
-    # TODO: Implement actual rate fetching from CurrencyService
-    rates = [
-        "1 USD = 2.65 GEL (Bank of Georgia)",
-        "1 EUR = 2.85 GEL (TBC Bank)",
-        "1 GBP = 3.35 GEL (Liberty Bank)",
-        "1 TRY = 0.085 GEL (ProCredit Bank)",
-        "1 RUB = 0.029 GEL (Basis Bank)",
-    ]
-
-    response = "Top 5 best rates to GEL:\n\n" + "\n".join(rates)
+    # Dependency injection: create repositories and service
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        office_repo = AsyncOfficeRepository(session=session)
+        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        service = CurrencyService(
+            organization_repo=org_repo,
+            office_repo=office_repo,
+            rate_repo=rate_repo,
+        )
+        try:
+            rows = await service.get_latest_rates_table()
+        except Exception as exc:
+            logger.warning(f"Failed to fetch rates: {exc}")
+            rows = []
+    # Format as pretty table in monospace (Telegram code block)
+    if not rows:
+        response = "No rates available."
+    else:
+        # Prepare pretty table (single line per org)
+        header = (
+            f"{'🏦 Organization':<14} │ {'🇺🇸 USD':>7} │ {'🇪🇺 EUR':>8} │ {'🇷🇺 RUB':>7}"
+        )
+        sep = "─" * len(header)
+        lines = [header, sep]
+        nbg_line = f"{rows[0].organization:<15} │ {rows[0].usd:>8} │ {rows[0].eur:>8} │ {rows[0].rub:>8}"
+        lines.append(nbg_line)
+        lines.append(sep)
+        for row in rows[1:4]:
+            org = row.organization if row.organization else "-"
+            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
+            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
+            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
+            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
+        lines.append(sep)
+        for row in rows[4:]:
+            org = row.organization if row.organization else "-"
+            usd = f"{row.usd:.4f}" if row.usd is not None else "-"
+            eur = f"{row.eur:.4f}" if row.eur is not None else "-"
+            rub = f"{row.rub:.5f}" if row.rub is not None else "-"
+            lines.append(f"{org[:15]:<15} │ {usd:>8} │ {eur:>8} │ {rub:>8}")
+        table = "\n".join(lines)
+        response = f"<pre>{table}</pre>"
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
-            text=response, reply_markup=get_back_to_main_menu_keyboard()
+            text=response,
+            reply_markup=get_back_to_main_menu_keyboard(),
+            parse_mode="HTML",
         )
 
 

@@ -26,7 +26,7 @@ class AsyncBaseRepository(Generic[T]):
     async def create(self, obj_in: Union[Dict[str, Any], T]) -> T:
         if isinstance(obj_in, dict):
             obj_in_data = obj_in
-            db_obj = self.model_class(**obj_in_data)  # type: ignore
+            db_obj = self.model_class.model_validate(obj_in_data)
         else:
             db_obj = obj_in
         self.session.add(db_obj)
@@ -46,7 +46,7 @@ class AsyncBaseRepository(Generic[T]):
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
-            update_data = obj_in.dict(exclude_unset=True)
+            update_data = obj_in.model_dump(exclude_unset=True)
         for field in update_data:
             if hasattr(db_obj, field):
                 setattr(db_obj, field, update_data[field])

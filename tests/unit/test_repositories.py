@@ -229,7 +229,7 @@ async def test_rate_repository(db_session):
     assert new_rate.id != rate.id
     assert new_rate.currency == "GBP"
 
-    old_timestamp = datetime.utcnow() - timedelta(hours=4)
+    old_timestamp = datetime.now(tz=UTC) - timedelta(hours=4)
     old_rate_data = {
         "office_id": office.id,
         "currency": "JPY",

@@ -81,7 +81,7 @@ class MyFinApiConnector(BaseRequester):
             )
 
             logger.info("Successfully fetched exchange rates")
-            logger.debug(f"Exchange rates response: {response}")
+            # logger.debug(f"Exchange rates response: {response}")
 
             return response
         except Exception as e:
@@ -120,7 +120,7 @@ class MyFinApiConnector(BaseRequester):
             )
 
             logger.info("Successfully fetched exchange rates")
-            logger.debug(f"Offices response: {response}")
+            # logger.debug(f"Offices response: {response}")
 
             return response
         except Exception as e:

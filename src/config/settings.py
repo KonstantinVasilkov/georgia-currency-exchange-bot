@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     DEBUG: bool = os.environ.get("DEBUG", "False").lower() in ("1", "true", "yes")
     ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "DEV")
 
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./db.sqlite")
+    raw_db_path: str = os.environ.get("DATABASE_URL", "sqlite:///./{}/db.sqlite")
+    DATABASE_URL: str = raw_db_path.format(PROJECT_ROOT)
     TELEGRAM_BOT_TOKEN: str = os.environ.get("TELEGRAM_BOT_TOKEN", "123:ABC")
     SENTRY_DSN: str = os.environ.get("SENTRY_DSN", "https://sentry.io/")
     MYFIN_API_BASE_URL: str = os.environ.get(
