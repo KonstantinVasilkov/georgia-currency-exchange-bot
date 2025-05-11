@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 
-from src.bot.bot import setup_bot
+from src.start_bot import setup_bot
 from src.config.logging_conf import get_logger
 
 logger = get_logger(__name__)

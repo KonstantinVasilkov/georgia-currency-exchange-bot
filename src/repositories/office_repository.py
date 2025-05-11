@@ -8,7 +8,7 @@ from typing import List, Sequence
 import uuid
 from sqlalchemy import true
 from sqlmodel import select, col
-from datetime import datetime
+from datetime import datetime, UTC
 
 from src.db.models.office import Office
 from src.repositories.base_repository import AsyncBaseRepository
@@ -62,7 +62,7 @@ class AsyncOfficeRepository(AsyncBaseRepository[Office]):
         offices_to_deactivate = (await self.session.exec(statement)).all()
         for office in offices_to_deactivate:
             office.is_active = False
-            office.updated_at = datetime.utcnow()
+            office.updated_at = datetime.now(tz=UTC)
             self.session.add(office)
         await self.session.commit()
         return len(offices_to_deactivate)
@@ -73,7 +73,7 @@ class AsyncOfficeRepository(AsyncBaseRepository[Office]):
             organization_id=office_data.get("organization_id"),
         )
         if existing_office:
-            office_data["updated_at"] = datetime.utcnow()
+            office_data["updated_at"] = datetime.now(tz=UTC)
             return await self.update(db_obj=existing_office, obj_in=office_data)
         else:
             return await self.create(obj_in=office_data)

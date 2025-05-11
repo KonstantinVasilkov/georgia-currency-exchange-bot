@@ -20,3 +20,11 @@ test_with_coverage:
 
 test:
 	${CMD} pytest -v
+
+
+#################################
+start_sync:
+	${CMD} python -m src.start_sync
+
+start_bot:
+	${CMD} python -m src.start_bot
