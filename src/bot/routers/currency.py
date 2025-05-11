@@ -7,7 +7,6 @@ from aiogram.types import (
     Message as AiogramMessage,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove,
 )
 from datetime import datetime, UTC, timedelta
 from math import radians, cos, sin, sqrt, atan2
@@ -178,7 +177,7 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
         office_repo = AsyncOfficeRepository(session=session)
         org = await org_repo.find_one_by(name=org_name)
         if not org:
-            if hasattr(callback.message, "edit_text"):
+            if callback.message is not None and hasattr(callback.message, "edit_text"):
                 await callback.message.edit_text(
                     text=f"Organization '{org_name}' not found.",
                     reply_markup=get_back_to_main_menu_keyboard(),
@@ -186,7 +185,7 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
             return
         offices: Sequence[Any] = await office_repo.get_by_organization(org.id)
         if not offices:
-            if hasattr(callback.message, "edit_text"):
+            if callback.message is not None and hasattr(callback.message, "edit_text"):
                 await callback.message.edit_text(
                     text=f"No offices found for {org_name}.",
                     reply_markup=get_back_to_main_menu_keyboard(),
@@ -200,7 +199,7 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
             + "\n".join(office_lines)
             + f"\n\n<a href='{gmaps_url}'>Open all in Google Maps</a> | <a href='{amap_url}'>Open all in Apple Maps</a>"
         )
-        if hasattr(callback.message, "edit_text"):
+        if callback.message is not None and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
                 text=response,
                 reply_markup=get_back_to_main_menu_keyboard(),
@@ -609,7 +608,10 @@ async def handle_location_message(message: Message) -> None:
         ]
         offices: list[Any] = []
         for org in orgs:
-            offices.extend(await office_repo.get_by_organization(org.id))
+            org_offices = await office_repo.get_by_organization(org.id)
+            for office in org_offices:
+                office.organization = org  # Attach org to office for later use
+            offices.extend(org_offices)
         if not offices:
             await message.reply("No offices found.")
             return
@@ -634,17 +636,27 @@ async def handle_location_message(message: Message) -> None:
                 return
         nearest = min(offices, key=office_distance)
         distance_km = office_distance(nearest)
+        # Fetch rates for this office
+        office_rates = await rate_repo.get_rates_by_office(nearest.id, limit=10)
+        rates_lines = []
+        for rate in office_rates:
+            rates_lines.append(f"{rate.currency}: {rate.buy:.4f} / {rate.sell:.4f}")
+        rates_str = "\n".join(rates_lines) if rates_lines else "No rates available."
         # Map links
         gmaps = f"https://maps.google.com/?q={nearest.lat},{nearest.lng}"
         amap = f"http://maps.apple.com/?ll={nearest.lat},{nearest.lng}"
         text = (
             f"Nearest office: <b>{nearest.name}</b>\n"
+            f"Organization: <b>{nearest.organization.name}</b> ({getattr(nearest.organization, 'type', '-')})\n"
             f"Address: {nearest.address}\n"
             f"Distance: {distance_km:.2f} km\n"
-            f"<a href='{gmaps}'>Open in Google Maps</a> | <a href='{amap}'>Open in Apple Maps</a>"
+            f"<a href='{gmaps}'>Open in Google Maps</a> | <a href='{amap}'>Open in Apple Maps</a>\n\n"
+            f"<b>Rates:</b>\n{rates_str}"
         )
         await message.answer(text, parse_mode="HTML")
     # Clear state after use
     user_search_state.pop(user_id, None)
-    # Remove the reply keyboard
-    await message.answer("Thank you!", reply_markup=ReplyKeyboardRemove())
+    # Remove the reply keyboard and show main menu
+    await message.answer(
+        "Main menu:", reply_markup=get_main_menu_keyboard()
+    )

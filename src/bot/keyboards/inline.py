@@ -29,6 +29,11 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
             text="Available organizations", callback_data="list_organizations"
         )
     )
+    builder.row(
+        InlineKeyboardButton(
+            text="Share location", callback_data="share_location"
+        )
+    )
     return builder.as_markup()
 
 
