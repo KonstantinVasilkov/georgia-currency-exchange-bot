@@ -33,7 +33,7 @@ This document outlines the implementation plan for the "Find Nearest Office" and
 ### 2.3. "Show All Offices of a Chosen Organization"
 
 - [x] Show a list of organizations (filtered by type: `Bank` or `MicrofinanceOrganization`).
-- [ ] On selection, show all offices for that organization.
+- [x] On selection, show all offices for that organization.
 
 ---
 
@@ -59,9 +59,9 @@ This document outlines the implementation plan for the "Find Nearest Office" and
 
 ## 5. Map Link Generation
 
-- [ ] For fallback (no location):
-  - [ ] Generate a Google Maps link and an Apple Maps link with pins for all offices of the selected organization (or all offices, if needed).
-  - [ ] Present both links to the user with clear labels.
+- [x] For fallback (no location):
+  - [x] Generate a Google Maps link and an Apple Maps link with pins for all offices of the selected organization (or all offices, if needed).
+  - [x] Present both links to the user with clear labels.
 
 - [x] For location-based search:
   - [x] For the nearest office, provide a button to open directions in Google Maps and a button for Apple Maps, pre-filled with the office address/coordinates.
@@ -99,6 +99,7 @@ This document outlines the implementation plan for the "Find Nearest Office" and
   - [x] Service logic (distance calculation, filtering, best rates)
   - [x] Routing and user flows (location/no location, currency pair selection)
   - [x] Map link generation
+  - [x] Integration tests for organization selection and map link flow
 
 ---
 

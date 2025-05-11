@@ -4,7 +4,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, Message as AiogramMessage
 from datetime import datetime, UTC, timedelta
 from math import radians, cos, sin, sqrt, atan2
-from typing import Any
+from typing import Any, Sequence
 
 from src.bot.keyboards.inline import (
     get_main_menu_keyboard,
@@ -143,26 +143,58 @@ async def handle_list_organizations(callback: CallbackQuery) -> None:
         )
 
 
+def generate_google_maps_multi_pin_url(offices: Sequence[Any]) -> str:
+    """Generate a Google Maps URL with multiple pins for the given offices."""
+    if not offices:
+        return "https://maps.google.com/"
+    base = "https://www.google.com/maps/dir/"
+    waypoints = "/".join(f"{o.lat:.4f},{o.lng:.4f}" for o in offices)
+    return f"{base}{waypoints}"
+
+
+def generate_apple_maps_multi_pin_url(offices: Sequence[Any]) -> str:
+    """Generate an Apple Maps URL with multiple pins for the given offices."""
+    if not offices:
+        return "http://maps.apple.com/"
+    pins = "&".join(f"q={o.lat:.4f},{o.lng:.4f}" for o in offices)
+    return f"http://maps.apple.com/?{pins}"
+
+
 @router.callback_query(F.data.startswith("org:"))
 async def handle_organization_selection(callback: CallbackQuery) -> None:
-    """Handle the organization selection and show its offices.
-
-    Args:
-        callback: The callback query.
     """
-    # TODO: Implement actual office fetching from OrganizationService
+    Handle the organization selection and show its offices with map links.
+    """
     org_name = callback.data.split(":")[1] if callback.data else ""
-    offices = [
-        "Main Branch - Rustaveli Ave. 7",
-        "Vake Branch - Chavchavadze Ave. 60",
-        "Saburtalo Branch - Pekini Ave. 45",
-        "Didube Branch - Agmashenebeli Ave. 120",
-    ]
-
-    response = f"Offices of {org_name}:\n\n" + "\n".join(offices)
-    if callback.message is not None and isinstance(callback.message, Message):
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        office_repo = AsyncOfficeRepository(session=session)
+        org = await org_repo.find_one_by(name=org_name)
+        if not org:
+            await callback.message.edit_text(
+                text=f"Organization '{org_name}' not found.",
+                reply_markup=get_back_to_main_menu_keyboard(),
+            )
+            return
+        offices: Sequence[Any] = await office_repo.get_by_organization(org.id)
+        if not offices:
+            await callback.message.edit_text(
+                text=f"No offices found for {org_name}.",
+                reply_markup=get_back_to_main_menu_keyboard(),
+            )
+            return
+        office_lines = [f"{o.name} - {o.address}" for o in offices]
+        gmaps_url = generate_google_maps_multi_pin_url(offices)
+        amap_url = generate_apple_maps_multi_pin_url(offices)
+        response = (
+            f"Offices of <b>{org_name}</b>:\n\n"
+            + "\n".join(office_lines)
+            + f"\n\n<a href='{gmaps_url}'>Open all in Google Maps</a> | <a href='{amap_url}'>Open all in Apple Maps</a>"
+        )
         await callback.message.edit_text(
-            text=response, reply_markup=get_back_to_main_menu_keyboard()
+            text=response,
+            reply_markup=get_back_to_main_menu_keyboard(),
+            parse_mode="HTML",
         )
 
 
@@ -477,7 +509,7 @@ async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
     Handle get currency selection for best rate office, then prompt for location.
     """
     user_id = callback.from_user.id if callback.from_user else None
-    parts = callback.data.split(":")
+    parts = callback.data.split(":") if callback.data else []
     if len(parts) == 3:
         sell_currency = parts[1]
         get_currency = parts[2]
@@ -544,21 +576,25 @@ async def handle_location_message(message: Message) -> None:
             for o in orgs
             if getattr(o, "type", None) in ("Bank", "MicrofinanceOrganization")
         ]
-        offices = []
+        offices: list[Any] = []
         for org in orgs:
             offices.extend(await office_repo.get_by_organization(org.id))
         if not offices:
             await message.reply("No offices found.")
             return
+
         # Find nearest office
         def office_distance(office):
             return haversine_distance(lat, lon, office.lat, office.lng)
+
         if state.get("mode") == "find_best_rate_office":
             sell = state.get("sell_currency", "USD")
             get = state.get("get_currency", "GEL")
             # Find best rate office (reuse CurrencyService logic)
             service = CurrencyService(org_repo, office_repo, rate_repo)
-            best_offices = await service.get_best_rates_for_pair(sell_currency=sell, get_currency=get)
+            best_offices = await service.get_best_rates_for_pair(
+                sell_currency=sell, get_currency=get
+            )
             # Map org name to office
             best_org_names = {r["organization"] for r in best_offices}
             offices = [o for o in offices if o.organization.name in best_org_names]
