@@ -17,11 +17,13 @@ from src.bot.utils.map_links import (
     generate_google_maps_multi_pin_url,
     generate_apple_maps_multi_pin_url,
 )
+from src.bot.utils.logging_decorator import log_router_call
 
 router = Router(name="org_router")
 
 
 @router.callback_query(F.data == "find_office_by_org")
+@log_router_call
 async def handle_find_office_by_org(callback: CallbackQuery) -> None:
     """Show a list of organizations filtered by type (Bank or MicrofinanceOrganization)."""
     async with async_get_db_session() as session:
@@ -41,6 +43,7 @@ async def handle_find_office_by_org(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("org:"))
+@log_router_call
 async def handle_organization_selection(callback: CallbackQuery) -> None:
     """Handle the organization selection and show its offices with map links."""
     org_name = callback.data.split(":")[1] if callback.data else ""

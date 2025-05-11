@@ -23,6 +23,7 @@ from src.config.logging_conf import get_logger
 from src.db.session import async_get_db_session
 from src.db.models.rate import Rate
 from src.utils.schedule_parser import format_weekly_schedule
+from src.bot.utils.logging_decorator import log_router_call
 
 router = Router(name="location_router")
 logger = get_logger(__name__)
@@ -49,6 +50,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 @router.callback_query(F.data == "find_office_menu")
+@log_router_call
 async def handle_find_office_menu(callback: CallbackQuery) -> None:
     explanation = (
         "\u2139\ufe0f <b>Find Nearest Office</b>\n"
@@ -64,6 +66,7 @@ async def handle_find_office_menu(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "find_best_rate_office")
+@log_router_call
 async def handle_find_best_rate_office(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id if callback.from_user else None
     if user_id:
@@ -77,6 +80,7 @@ async def handle_find_best_rate_office(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("find_best_sell_currency:"))
+@log_router_call
 async def handle_find_best_sell_currency(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id if callback.from_user else None
     sell_currency = callback.data.split(":")[1] if callback.data else ""
@@ -95,6 +99,7 @@ async def handle_find_best_sell_currency(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("find_best_get_currency:"))
+@log_router_call
 async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
     parts = callback.data.split(":") if callback.data else []
     if len(parts) == 3:
@@ -115,6 +120,7 @@ async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "share_location")
+@log_router_call
 async def handle_share_location(callback: CallbackQuery) -> None:
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
@@ -133,6 +139,7 @@ async def handle_share_location(callback: CallbackQuery) -> None:
 
 
 @router.message(F.location)
+@log_router_call
 async def handle_location_message(message: Message) -> None:
     user_id = message.from_user.id if message.from_user else None
     if not user_id or not message.location:
@@ -276,6 +283,7 @@ async def handle_location_message(message: Message) -> None:
 
 
 @router.callback_query(F.data == "filter_open_only")
+@log_router_call
 async def handle_filter_open_only(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id if callback.from_user else None
     if user_id:
@@ -293,6 +301,7 @@ async def handle_filter_open_only(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "filter_all_offices")
+@log_router_call
 async def handle_filter_all_offices(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id if callback.from_user else None
     if user_id:
@@ -310,6 +319,7 @@ async def handle_filter_all_offices(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "find_nearest_office")
+@log_router_call
 async def handle_find_nearest_office(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id if callback.from_user else None
     if user_id:

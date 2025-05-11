@@ -17,6 +17,7 @@ from src.repositories.office_repository import AsyncOfficeRepository
 from src.repositories.rate_repository import AsyncRateRepository
 from src.db.session import async_get_db_session
 from src.db.models.rate import Rate
+from src.bot.utils.logging_decorator import log_router_call
 
 router = Router(name="conversion_router")
 logger = get_logger(__name__)
@@ -25,6 +26,7 @@ AVAILABLE_CURRENCIES = ["USD", "EUR", "GBP", "TRY", "RUB"]
 
 
 @router.callback_query(F.data == "best_rates_between")
+@log_router_call
 async def handle_best_rates_between(callback: CallbackQuery) -> None:
     """
     Handle the best rates between currencies request.
@@ -39,6 +41,7 @@ async def handle_best_rates_between(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("from_currency:"))
+@log_router_call
 async def handle_from_currency_selection(callback: CallbackQuery) -> None:
     """
     Handle the first currency selection for conversion.
@@ -55,15 +58,24 @@ async def handle_from_currency_selection(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("to_currency:"))
+@log_router_call
 async def handle_to_currency_selection(callback: CallbackQuery) -> None:
     """
     Handle the second currency selection and show real best rates between currencies.
     """
     # Parse from_currency from previous message or context
     from_currency = None
-    if callback.message and callback.message.text:
+    if (
+        callback.message
+        and isinstance(callback.message, Message)
+        and hasattr(callback.message, "text")
+        and callback.message.text
+    ):
         import re
-        match = re.match(r"Selected (\w+). Now select second currency:", callback.message.text)
+
+        match = re.match(
+            r"Selected (\w+). Now select second currency:", callback.message.text
+        )
         if match:
             from_currency = match.group(1)
     if not from_currency:

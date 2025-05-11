@@ -20,8 +20,8 @@ This checklist tracks actionable refactoring tasks based on the refactoring plan
 ## Service Layer
 - [ ] Move rate table formatting to a service method
 - [ ] Move office search and distance calculation to a service
-- [ ] Move conversion logic to a service
-- [ ] Ensure all business logic is outside handlers
+- [x] Move conversion logic to a service
+- [x] Ensure all business logic is outside handlers
 
 ## Dependency Injection
 - [ ] Create a factory or provider for repositories/services

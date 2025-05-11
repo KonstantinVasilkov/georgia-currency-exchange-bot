@@ -401,7 +401,7 @@ async def test_handle_to_currency_selection(monkeypatch):
 
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
-    msg.text = 'Selected USD. Now select second currency:'
+    msg.text = "Selected USD. Now select second currency:"
     callback = SimpleNamespace(message=msg, data="to_currency:EUR")
     monkeypatch.setattr(
         "src.bot.routers.conversion.get_back_to_main_menu_keyboard",
@@ -579,9 +579,13 @@ async def test_handle_location_message_happy(monkeypatch):
             return_value=[AsyncMock(currency="USD", buy_rate=2.5, sell_rate=2.6)]
         )
     )
-    monkeypatch.setattr(location, "AsyncOrganizationRepository", lambda session: org_repo)
+    monkeypatch.setattr(
+        location, "AsyncOrganizationRepository", lambda session: org_repo
+    )
     monkeypatch.setattr(location, "AsyncOfficeRepository", lambda session: office_repo)
-    monkeypatch.setattr(location, "AsyncRateRepository", lambda session, model_class=None: rate_repo)
+    monkeypatch.setattr(
+        location, "AsyncRateRepository", lambda session, model_class=None: rate_repo
+    )
     monkeypatch.setattr(location, "format_weekly_schedule", lambda s: "Mon-Fri: 9-18")
     location.user_search_state[321] = {"mode": "find_nearest_office"}
     await location.handle_location_message(msg)
@@ -733,3 +737,83 @@ async def test_handle_location_message_no_best_rate_offices(monkeypatch):
     await location.handle_location_message(msg)
     assert "No offices with best rates found" in sent["text"]
     assert sent["reply_markup"] is None
+
+
+@pytest.mark.asyncio
+async def test_best_rates_between_scenario(monkeypatch):
+    """
+    Simulate user clicking best rates, picking two currencies, and bot replying with best rates table.
+    """
+    from src.bot.routers import conversion
+
+    sent = {}
+
+    # Step 1: User clicks 'best rates between currencies'
+    async def edit_text_1(text, reply_markup=None, parse_mode=None):
+        sent["step1_text"] = text
+        sent["step1_reply_markup"] = reply_markup
+
+    msg1 = AsyncMock(spec=Message)
+    msg1.edit_text.side_effect = edit_text_1
+    callback1 = SimpleNamespace(message=msg1, data="best_rates_between")
+    await conversion.handle_best_rates_between(callback1)
+    assert "Select first currency" in sent["step1_text"]
+    assert sent["step1_reply_markup"] is not None
+
+    # Step 2: User selects first currency
+    async def edit_text_2(text, reply_markup=None, parse_mode=None):
+        sent["step2_text"] = text
+        sent["step2_reply_markup"] = reply_markup
+
+    msg2 = AsyncMock(spec=Message)
+    msg2.edit_text.side_effect = edit_text_2
+    callback2 = SimpleNamespace(message=msg2, data="from_currency:USD")
+    await conversion.handle_from_currency_selection(callback2)
+    assert "Selected USD. Now select second currency:" in sent["step2_text"]
+    assert sent["step2_reply_markup"] is not None
+
+    # Step 3: User selects second currency
+    async def edit_text_3(text, reply_markup=None, parse_mode=None):
+        sent["step3_text"] = text
+        sent["step3_reply_markup"] = reply_markup
+
+    msg3 = AsyncMock(spec=Message)
+    msg3.edit_text.side_effect = edit_text_3
+    msg3.text = "Selected USD. Now select second currency:"
+    callback3 = SimpleNamespace(message=msg3, data="to_currency:EUR")
+    # Patch service to return known rates
+    monkeypatch.setattr(
+        conversion.CurrencyService,
+        "get_best_rates_for_pair",
+        AsyncMock(
+            return_value=[
+                {"organization": "NBG", "rate": 0.93},
+                {"organization": "TBC Bank", "rate": 0.92},
+            ]
+        ),
+    )
+    # Patch repo/session dependencies
+    monkeypatch.setattr(
+        conversion, "AsyncOrganizationRepository", lambda session: AsyncMock()
+    )
+    monkeypatch.setattr(
+        conversion, "AsyncOfficeRepository", lambda session: AsyncMock()
+    )
+    monkeypatch.setattr(
+        conversion, "AsyncRateRepository", lambda session, model_class=None: AsyncMock()
+    )
+
+    class DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr(conversion, "async_get_db_session", DummySession)
+    await conversion.handle_to_currency_selection(callback3)
+    assert "USD" in sent["step3_text"]
+    assert "EUR" in sent["step3_text"]
+    assert "NBG" in sent["step3_text"]
+    assert "TBC Bank" in sent["step3_text"]
+    assert sent["step3_reply_markup"] is not None
