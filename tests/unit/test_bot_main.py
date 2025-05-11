@@ -120,12 +120,21 @@ async def test_main_keyboard_interrupt() -> None:
     with (
         patch("src.start_bot.start_bot", side_effect=KeyboardInterrupt),
         patch("src.bot.routers.start.router", new=Router(name="start_router_test")),
+        patch("src.bot.routers.rates.router", new=Router(name="rates_router_test")),
         patch(
-            "src.bot.routers.currency.router", new=Router(name="currency_router_test")
+            "src.bot.routers.conversion.router",
+            new=Router(name="conversion_router_test"),
         ),
         patch("src.start_bot.Dispatcher.start_polling", new_callable=AsyncMock),
         patch("src.start_bot.Bot.get_me", new_callable=AsyncMock),
         patch("src.start_bot.Bot.set_my_commands", new_callable=AsyncMock),
+        patch(
+            "src.start_bot.ROUTERS",
+            (
+                Router(name="start_router_test"),
+                Router(name="rates_router_test"),
+                Router(name="conversion_router_test"),
+            ),
+        ),
     ):
-        # Call main and verify it handles KeyboardInterrupt
         await main()  # Should not raise an exception

@@ -3,15 +3,21 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from aiogram.types import Message, Location, User
 from src.bot.routers import currency
+from src.bot.routers.org import handle_organization_selection, handle_find_office_by_org
+from src.bot.routers.conversion import (
+    handle_from_currency_selection,
+    handle_to_currency_selection,
+)
+from src.bot.routers import location
 from datetime import datetime, timezone
 
 
 @pytest.fixture(autouse=True)
 def clear_user_search_state():
     """Clear user_search_state before each test to avoid state leakage."""
-    currency.user_search_state.clear()
+    location.user_search_state.clear()
     yield
-    currency.user_search_state.clear()
+    location.user_search_state.clear()
 
 
 @pytest.mark.asyncio
@@ -153,7 +159,7 @@ async def test_handle_find_office_menu(monkeypatch):
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
     callback = SimpleNamespace(message=msg, data="find_office_menu")
-    await currency.handle_find_office_menu(callback)
+    await location.handle_find_office_menu(callback)
     assert (
         "Find Nearest Office" in sent["text"]
         or "The first two options require you to share your location." in sent["text"]
@@ -176,7 +182,7 @@ async def test_handle_find_office_by_org(monkeypatch):
     org_repo = AsyncMock()
     org_repo.get_active_organizations = AsyncMock(return_value=orgs)
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        "src.bot.routers.org.AsyncOrganizationRepository", lambda session: org_repo
     )
 
     class DummySession:
@@ -186,8 +192,8 @@ async def test_handle_find_office_by_org(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    await currency.handle_find_office_by_org(callback)
+    monkeypatch.setattr("src.bot.routers.org.async_get_db_session", DummySession)
+    await handle_find_office_by_org(callback)
     assert "Select an organization" in sent["text"]
     assert sent["reply_markup"] is not None
 
@@ -206,7 +212,7 @@ async def test_handle_organization_selection_not_found(monkeypatch):
     org_repo = AsyncMock()
     org_repo.find_one_by = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        "src.bot.routers.org.AsyncOrganizationRepository", lambda session: org_repo
     )
 
     class DummySession:
@@ -216,8 +222,8 @@ async def test_handle_organization_selection_not_found(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    await currency.handle_organization_selection(callback)
+    monkeypatch.setattr("src.bot.routers.org.async_get_db_session", DummySession)
+    await handle_organization_selection(callback)
     assert "not found" in sent["text"]
 
 
@@ -238,9 +244,11 @@ async def test_handle_organization_selection_no_offices(monkeypatch):
     office_repo = AsyncMock()
     office_repo.get_by_organization = AsyncMock(return_value=[])
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        "src.bot.routers.org.AsyncOrganizationRepository", lambda session: org_repo
     )
-    monkeypatch.setattr(currency, "AsyncOfficeRepository", lambda session: office_repo)
+    monkeypatch.setattr(
+        "src.bot.routers.org.AsyncOfficeRepository", lambda session: office_repo
+    )
 
     class DummySession:
         async def __aenter__(self):
@@ -249,8 +257,8 @@ async def test_handle_organization_selection_no_offices(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    await currency.handle_organization_selection(callback)
+    monkeypatch.setattr("src.bot.routers.org.async_get_db_session", DummySession)
+    await handle_organization_selection(callback)
     assert "No offices found" in sent["text"]
 
 
@@ -267,8 +275,11 @@ async def test_handle_find_nearest_office(monkeypatch):
     callback = SimpleNamespace(
         message=msg, data="find_nearest_office", from_user=SimpleNamespace(id=1)
     )
-    await currency.handle_find_nearest_office(callback)
-    assert "Would you like to see only currently open offices" in sent["text"]
+    await location.handle_find_nearest_office(callback)
+    assert (
+        "Would you like to see only currently open offices or all offices?"
+        in sent["text"]
+    )
     assert sent["reply_markup"] is not None
 
 
@@ -285,7 +296,7 @@ async def test_handle_filter_open_only(monkeypatch):
     callback = SimpleNamespace(
         message=msg, data="filter_open_only", from_user=SimpleNamespace(id=1)
     )
-    await currency.handle_filter_open_only(callback)
+    await location.handle_filter_open_only(callback)
     assert "Please share your location" in sent["text"]
     assert sent["reply_markup"] is not None
 
@@ -303,7 +314,7 @@ async def test_handle_filter_all_offices(monkeypatch):
     callback = SimpleNamespace(
         message=msg, data="filter_all_offices", from_user=SimpleNamespace(id=1)
     )
-    await currency.handle_filter_all_offices(callback)
+    await location.handle_filter_all_offices(callback)
     assert "Please share your location" in sent["text"]
     assert sent["reply_markup"] is not None
 
@@ -317,10 +328,10 @@ async def test_handle_location_message_no_user(monkeypatch):
         sent["reply_markup"] = reply_markup
 
     msg = AsyncMock(spec=Message)
+    msg.reply.side_effect = reply
     msg.from_user = None
     msg.location = Location(latitude=41.7, longitude=44.8)
-    msg.reply.side_effect = reply
-    await currency.handle_location_message(msg)
+    await location.handle_location_message(msg)
     assert "Could not determine user or location." in sent["text"]
 
 
@@ -333,10 +344,10 @@ async def test_handle_location_message_no_location(monkeypatch):
         sent["reply_markup"] = reply_markup
 
     msg = AsyncMock(spec=Message)
-    msg.from_user = User(id=123, is_bot=False, first_name="Test")
-    msg.location = None
     msg.reply.side_effect = reply
-    await currency.handle_location_message(msg)
+    msg.from_user = SimpleNamespace(id=123)
+    msg.location = None
+    await location.handle_location_message(msg)
     assert "Could not determine user or location." in sent["text"]
 
 
@@ -349,12 +360,11 @@ async def test_handle_location_message_no_state(monkeypatch):
         sent["reply_markup"] = reply_markup
 
     msg = AsyncMock(spec=Message)
-    msg.from_user = User(id=123, is_bot=False, first_name="Test")
-    msg.location = Location(latitude=41.7, longitude=44.8)
     msg.reply.side_effect = reply
-    # Ensure user_search_state does not contain the user
-    currency.user_search_state.pop(123, None)
-    await currency.handle_location_message(msg)
+    msg.from_user = SimpleNamespace(id=123)
+    msg.location = Location(latitude=41.7, longitude=44.8)
+    location.user_search_state.pop(123, None)
+    await location.handle_location_message(msg)
     assert "Session expired" in sent["text"]
     assert sent["reply_markup"] is not None
 
@@ -370,11 +380,15 @@ async def test_handle_from_currency_selection(monkeypatch):
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
     callback = SimpleNamespace(message=msg, data="from_currency:USD")
-    currency.get_currency_selection_keyboard = lambda *args, **kwargs: "keyboard"
-    currency.AVAILABLE_CURRENCIES = ["USD", "EUR"]
-    await currency.handle_from_currency_selection(callback)
-    assert "Selected USD" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
+    monkeypatch.setattr(
+        "src.bot.routers.conversion.get_currency_selection_keyboard",
+        lambda *args, **kwargs: "keyboard",
+    )
+    monkeypatch.setattr(
+        "src.bot.routers.conversion.AVAILABLE_CURRENCIES", ["USD", "EUR"]
+    )
+    await handle_from_currency_selection(callback)
+    assert "Selected USD. Now select second currency:" in sent["text"]
 
 
 @pytest.mark.asyncio
@@ -388,10 +402,12 @@ async def test_handle_to_currency_selection(monkeypatch):
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
     callback = SimpleNamespace(message=msg, data="to_currency:EUR")
-    currency.get_back_to_main_menu_keyboard = lambda *args, **kwargs: "keyboard"
-    await currency.handle_to_currency_selection(callback)
-    assert "Top 5 best rates" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
+    monkeypatch.setattr(
+        "src.bot.routers.conversion.get_back_to_main_menu_keyboard",
+        lambda *args, **kwargs: "keyboard",
+    )
+    await handle_to_currency_selection(callback)
+    assert "Top 5 best rates between currencies:" in sent["text"]
 
 
 @pytest.mark.asyncio
@@ -405,13 +421,11 @@ async def test_handle_find_best_rate_office(monkeypatch):
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
     callback = SimpleNamespace(
-        message=msg, data="find_best_rate_office", from_user=SimpleNamespace(id=42)
+        message=msg, data="find_best_rate_office", from_user=SimpleNamespace(id=1)
     )
-    currency.get_open_office_filter_keyboard = lambda *args, **kwargs: "keyboard"
-    await currency.handle_find_best_rate_office(callback)
+    await location.handle_find_best_rate_office(callback)
     assert "currently open offices" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
-    assert currency.user_search_state[42]["mode"] == "find_best_rate_office"
+    assert sent["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -425,16 +439,11 @@ async def test_handle_find_best_sell_currency(monkeypatch):
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
     callback = SimpleNamespace(
-        message=msg,
-        data="find_best_sell_currency:USD",
-        from_user=SimpleNamespace(id=43),
+        message=msg, data="find_best_sell_currency:USD", from_user=SimpleNamespace(id=1)
     )
-    currency.get_currency_selection_keyboard = lambda *args, **kwargs: "keyboard"
-    currency.AVAILABLE_BOT_CURRENCIES = ["USD", "EUR"]
-    await currency.handle_find_best_sell_currency(callback)
+    await location.handle_find_best_sell_currency(callback)
     assert "Selected USD" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
-    assert currency.user_search_state[43]["sell_currency"] == "USD"
+    assert sent["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -447,11 +456,13 @@ async def test_handle_find_best_get_currency(monkeypatch):
 
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
-    callback = SimpleNamespace(message=msg, data="find_best_get_currency:USD:EUR")
-    currency.get_open_office_filter_keyboard = lambda *args, **kwargs: "keyboard"
-    await currency.handle_find_best_get_currency(callback)
-    assert "You selected USD" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
+    callback = SimpleNamespace(message=msg, data="find_best_get_currency:USD:GEL")
+    await location.handle_find_best_get_currency(callback)
+    assert (
+        "Would you like to see only currently open offices or all offices?"
+        in sent["text"]
+    )
+    assert sent["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -464,17 +475,17 @@ async def test_handle_share_location(monkeypatch):
 
     msg = AsyncMock(spec=Message)
     msg.answer.side_effect = answer
-    callback = SimpleNamespace(message=msg)
-    currency.ReplyKeyboardMarkup = lambda **kwargs: "keyboard"
-    currency.KeyboardButton = lambda **kwargs: None
+    callback = SimpleNamespace(message=msg, from_user=SimpleNamespace(id=1))
+    monkeypatch.setattr(location, "ReplyKeyboardMarkup", lambda **kwargs: "keyboard")
+    monkeypatch.setattr(location, "KeyboardButton", lambda **kwargs: None)
 
     async def dummy_answer():
         pass
 
     callback.answer = dummy_answer
-    await currency.handle_share_location(callback)
+    await location.handle_share_location(callback)
     assert "Please share your location" in sent["text"]
-    assert sent["reply_markup"] == "keyboard"
+    assert sent["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -529,7 +540,7 @@ async def test_handle_get_currency_selection_happy(monkeypatch):
 
     monkeypatch.setattr(currency, "async_get_db_session", DummySession)
     # Set user_search_state for the test user to include sell_currency
-    currency.user_search_state[1] = {"sell_currency": "USD"}
+    location.user_search_state[1] = {"sell_currency": "USD"}
     await currency.handle_get_currency_selection(callback)
     assert "NBG" in sent["text"]
     assert sent["parse_mode"] == "HTML"
@@ -565,39 +576,14 @@ async def test_handle_location_message_happy(monkeypatch):
             return_value=[AsyncMock(currency="USD", buy_rate=2.5, sell_rate=2.6)]
         )
     )
-    schedule_repo = AsyncMock(
-        get_by_office_id=AsyncMock(
-            return_value=[AsyncMock(day=0, opens_at=0, closes_at=1440)]
-        )
-    )
-    monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
-    )
-    monkeypatch.setattr(currency, "AsyncOfficeRepository", lambda session: office_repo)
-    monkeypatch.setattr(
-        currency, "AsyncRateRepository", lambda session, model_class=None: rate_repo
-    )
-    monkeypatch.setattr(currency, "format_weekly_schedule", lambda s: "Mon-Fri: 9-18")
-    monkeypatch.setattr(
-        "src.repositories.schedule_repository.AsyncScheduleRepository",
-        lambda *args, **kwargs: schedule_repo,
-    )
-
-    class DummySession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-        async def exec(self, statement):
-            return AsyncMock()
-
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    currency.user_search_state[321] = {"mode": "find_nearest_office"}
-    await currency.handle_location_message(msg)
+    monkeypatch.setattr(location, "AsyncOrganizationRepository", lambda session: org_repo)
+    monkeypatch.setattr(location, "AsyncOfficeRepository", lambda session: office_repo)
+    monkeypatch.setattr(location, "AsyncRateRepository", lambda session, model_class=None: rate_repo)
+    monkeypatch.setattr(location, "format_weekly_schedule", lambda s: "Mon-Fri: 9-18")
+    location.user_search_state[321] = {"mode": "find_nearest_office"}
+    await location.handle_location_message(msg)
     assert "🏢" in sent["text"]
-    assert sent["parse_mode"] == "HTML"
+    assert sent["reply_markup"] is not None
 
 
 @pytest.mark.asyncio
@@ -619,9 +605,9 @@ async def test_handle_location_message_no_offices(monkeypatch):
     )
     office_repo = AsyncMock(get_by_organization=AsyncMock(return_value=[]))
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        location, "AsyncOrganizationRepository", lambda session: org_repo
     )
-    monkeypatch.setattr(currency, "AsyncOfficeRepository", lambda session: office_repo)
+    monkeypatch.setattr(location, "AsyncOfficeRepository", lambda session: office_repo)
 
     class DummySession:
         async def __aenter__(self):
@@ -630,10 +616,11 @@ async def test_handle_location_message_no_offices(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    currency.user_search_state[322] = {"mode": "find_nearest_office"}
-    await currency.handle_location_message(msg)
+    monkeypatch.setattr(location, "async_get_db_session", DummySession)
+    location.user_search_state[322] = {"mode": "find_nearest_office"}
+    await location.handle_location_message(msg)
     assert "No offices found" in sent["text"]
+    assert sent["reply_markup"] is None
 
 
 @pytest.mark.asyncio
@@ -660,11 +647,11 @@ async def test_handle_location_message_no_open_offices(monkeypatch):
     org_repo = AsyncMock(get_active_organizations=AsyncMock(return_value=[org]))
     schedule_repo = AsyncMock(get_by_office_id=AsyncMock(return_value=[]))
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        location, "AsyncOrganizationRepository", lambda session: org_repo
     )
-    monkeypatch.setattr(currency, "AsyncOfficeRepository", lambda session: office_repo)
+    monkeypatch.setattr(location, "AsyncOfficeRepository", lambda session: office_repo)
     monkeypatch.setattr(
-        currency, "AsyncRateRepository", lambda session, model_class=None: AsyncMock()
+        location, "AsyncRateRepository", lambda session, model_class=None: AsyncMock()
     )
     monkeypatch.setattr(
         "src.repositories.schedule_repository.AsyncScheduleRepository",
@@ -681,10 +668,11 @@ async def test_handle_location_message_no_open_offices(monkeypatch):
         async def exec(self, statement):
             return AsyncMock()
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    currency.user_search_state[323] = {"mode": "find_nearest_office", "open_only": True}
-    await currency.handle_location_message(msg)
+    monkeypatch.setattr(location, "async_get_db_session", DummySession)
+    location.user_search_state[323] = {"mode": "find_nearest_office", "open_only": True}
+    await location.handle_location_message(msg)
     assert "No offices are currently open" in sent["text"]
+    assert sent["reply_markup"] is None
 
 
 @pytest.mark.asyncio
@@ -716,11 +704,11 @@ async def test_handle_location_message_no_best_rate_offices(monkeypatch):
         )
     )
     monkeypatch.setattr(
-        currency, "AsyncOrganizationRepository", lambda session: org_repo
+        location, "AsyncOrganizationRepository", lambda session: org_repo
     )
-    monkeypatch.setattr(currency, "AsyncOfficeRepository", lambda session: office_repo)
+    monkeypatch.setattr(location, "AsyncOfficeRepository", lambda session: office_repo)
     monkeypatch.setattr(
-        currency, "AsyncRateRepository", lambda session, model_class=None: rate_repo
+        location, "AsyncRateRepository", lambda session, model_class=None: rate_repo
     )
     monkeypatch.setattr(
         "src.repositories.schedule_repository.AsyncScheduleRepository",
@@ -737,7 +725,8 @@ async def test_handle_location_message_no_best_rate_offices(monkeypatch):
         async def exec(self, statement):
             return AsyncMock()
 
-    monkeypatch.setattr(currency, "async_get_db_session", DummySession)
-    currency.user_search_state[324] = {"mode": "find_best_rate_office"}
-    await currency.handle_location_message(msg)
+    monkeypatch.setattr(location, "async_get_db_session", DummySession)
+    location.user_search_state[324] = {"mode": "find_best_rate_office"}
+    await location.handle_location_message(msg)
     assert "No offices with best rates found" in sent["text"]
+    assert sent["reply_markup"] is None

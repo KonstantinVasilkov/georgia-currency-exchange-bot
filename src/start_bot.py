@@ -16,9 +16,21 @@ from aiogram.client.default import DefaultBotProperties
 
 from src.config.logging_conf import get_logger
 from src.config.settings import settings
-from src.bot.routers import start, currency
+from src.bot.routers import start
+from src.bot.routers.rates import router as rates_router
+from src.bot.routers.conversion import router as conversion_router
+from src.bot.routers.location import router as location_router
+from src.bot.routers.org import router as org_router
 
 logger = get_logger(__name__)
+
+ROUTERS: Sequence[Router] = (
+    start.router,
+    rates_router,
+    conversion_router,
+    location_router,
+    org_router,
+)
 
 
 async def set_commands(bot: Bot) -> None:
@@ -42,7 +54,10 @@ async def setup_bot(bot: Bot, dispatcher: Dispatcher) -> None:
         ]
         await bot.set_my_commands(commands)
         dispatcher.include_router(start.router)
-        dispatcher.include_router(currency.router)
+        dispatcher.include_router(rates_router)
+        dispatcher.include_router(conversion_router)
+        dispatcher.include_router(location_router)
+        dispatcher.include_router(org_router)
     except Exception as exc:
         logger.error(f"Error in setup_bot: {exc}")
         raise
@@ -79,10 +94,7 @@ async def main() -> None:
         dp = Dispatcher()
 
         # Register routers
-        routers: Sequence[Router] = (
-            start.router,
-            currency.router,
-        )
+        routers = ROUTERS
         for router in routers:
             dp.include_router(router)
 

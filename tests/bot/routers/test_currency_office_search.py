@@ -1,6 +1,6 @@
 import pytest
 from types import SimpleNamespace
-from src.bot.routers.currency import handle_organization_selection
+from src.bot.routers.org import handle_organization_selection
 from unittest.mock import AsyncMock
 
 
@@ -33,17 +33,17 @@ async def test_handle_organization_selection_sends_offices_and_map_links(monkeyp
             pass
 
     monkeypatch.setattr(
-        "src.bot.routers.currency.async_get_db_session", lambda: FakeSession()
+        "src.bot.routers.org.async_get_db_session", lambda: FakeSession()
     )
     org_repo = AsyncMock()
     org_repo.find_one_by = AsyncMock(return_value=org)
     office_repo = AsyncMock()
     office_repo.get_by_organization = AsyncMock(return_value=offices)
     monkeypatch.setattr(
-        "src.bot.routers.currency.AsyncOrganizationRepository", lambda session: org_repo
+        "src.bot.routers.org.AsyncOrganizationRepository", lambda session: org_repo
     )
     monkeypatch.setattr(
-        "src.bot.routers.currency.AsyncOfficeRepository", lambda session: office_repo
+        "src.bot.routers.org.AsyncOfficeRepository", lambda session: office_repo
     )
     sent_messages = {}
 

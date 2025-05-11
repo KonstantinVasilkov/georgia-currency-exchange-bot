@@ -1,4 +1,4 @@
-from src.bot.routers.currency import (
+from src.bot.utils.map_links import (
     generate_google_maps_multi_pin_url,
     generate_apple_maps_multi_pin_url,
 )

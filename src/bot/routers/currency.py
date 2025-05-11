@@ -1,25 +1,22 @@
-"""Router for currency exchange functionality."""
+"""
+Currency router (core logic split by domain).
+
+Note: Rate-related handlers have been moved to rates.py.
+Note: Conversion-related handlers have been moved to conversion.py.
+"""
 
 from aiogram import Router, F
 from aiogram.types import (
     CallbackQuery,
     Message,
     Message as AiogramMessage,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
 )
 from datetime import datetime, UTC, timedelta
-from math import radians, cos, sin, sqrt, atan2
-from typing import Any, Sequence
 
 from src.bot.keyboards.inline import (
     get_main_menu_keyboard,
     get_currency_selection_keyboard,
-    get_organization_keyboard,
     get_back_to_main_menu_keyboard,
-    get_find_office_menu_keyboard,
-    get_location_or_fallback_keyboard,
-    get_open_office_filter_keyboard,
 )
 from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
@@ -28,7 +25,6 @@ from src.repositories.rate_repository import AsyncRateRepository
 from src.config.logging_conf import get_logger
 from src.db.session import async_get_db_session
 from src.db.models.rate import Rate
-from src.utils.schedule_parser import format_weekly_schedule
 
 router = Router(name="currency_router")
 
@@ -39,22 +35,6 @@ AVAILABLE_CURRENCIES = ["USD", "EUR", "GBP", "TRY", "RUB"]
 AVAILABLE_BOT_CURRENCIES = ["USD", "EUR", "GBP", "RUB", "GEL"]
 
 logger = get_logger(__name__)
-
-# Simple in-memory state for demo (user_id -> context)
-user_search_state: dict[int, dict[str, Any]] = {}
-
-
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate the great-circle distance between two points (km)."""
-    R = 6371.0  # Earth radius in km
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    )
-    c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return R * c
 
 
 @router.callback_query(F.data == "best_rates")
@@ -69,121 +49,6 @@ async def handle_best_rates(callback: CallbackQuery) -> None:
                 currencies=AVAILABLE_BOT_CURRENCIES, callback_prefix="sell_currency"
             ),
         )
-
-
-@router.callback_query(F.data == "best_rates_between")
-async def handle_best_rates_between(callback: CallbackQuery) -> None:
-    """Handle the best rates between currencies request.
-
-    Args:
-        callback: The callback query.
-    """
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text="Select first currency:",
-            reply_markup=get_currency_selection_keyboard(
-                currencies=AVAILABLE_CURRENCIES, callback_prefix="from_currency"
-            ),
-        )
-
-
-@router.callback_query(F.data.startswith("from_currency:"))
-async def handle_from_currency_selection(callback: CallbackQuery) -> None:
-    """Handle the first currency selection.
-
-    Args:
-        callback: The callback query.
-    """
-    from_currency = callback.data.split(":")[1] if callback.data else ""
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=f"Selected {from_currency}. Now select second currency:",
-            reply_markup=get_currency_selection_keyboard(
-                currencies=[c for c in AVAILABLE_CURRENCIES if c != from_currency],
-                callback_prefix="to_currency",
-            ),
-        )
-
-
-@router.callback_query(F.data.startswith("to_currency:"))
-async def handle_to_currency_selection(callback: CallbackQuery) -> None:
-    """Handle the second currency selection and show rates.
-
-    Args:
-        callback: The callback query.
-    """
-    # TODO: Implement actual rate fetching from CurrencyService
-    to_currency = callback.data.split(":")[1] if callback.data else ""  # noqa
-    rates = [
-        "1 USD = 0.93 EUR (Bank of Georgia)",
-        "1 USD = 0.79 GBP (TBC Bank)",
-        "1 USD = 31.18 TRY (Liberty Bank)",
-        "1 USD = 91.38 RUB (ProCredit Bank)",
-    ]
-
-    response = "Top 5 best rates between currencies:\n\n" + "\n".join(rates)
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=response, reply_markup=get_back_to_main_menu_keyboard()
-        )
-
-
-def generate_google_maps_multi_pin_url(offices: Sequence[Any]) -> str:
-    """Generate a Google Maps URL with multiple pins for the given offices."""
-    if not offices:
-        return "https://maps.google.com/"
-    base = "https://www.google.com/maps/dir/"
-    waypoints = "/".join(f"{o.lat:.4f},{o.lng:.4f}" for o in offices)
-    return f"{base}{waypoints}"
-
-
-def generate_apple_maps_multi_pin_url(offices: Sequence[Any]) -> str:
-    """Generate an Apple Maps URL with multiple pins for the given offices."""
-    if not offices:
-        return "http://maps.apple.com/"
-    pins = "&".join(f"q={o.lat:.4f},{o.lng:.4f}" for o in offices)
-    return f"http://maps.apple.com/?{pins}"
-
-
-@router.callback_query(F.data.startswith("org:"))
-async def handle_organization_selection(callback: CallbackQuery) -> None:
-    """
-    Handle the organization selection and show its offices with map links.
-    """
-    org_name = callback.data.split(":")[1] if callback.data else ""
-    async with async_get_db_session() as session:
-        org_repo = AsyncOrganizationRepository(session=session)
-        office_repo = AsyncOfficeRepository(session=session)
-        org = await org_repo.find_one_by(name=org_name)
-        if not org:
-            if callback.message is not None and hasattr(callback.message, "edit_text"):
-                await callback.message.edit_text(
-                    text=f"Organization '{org_name}' not found.",
-                    reply_markup=get_back_to_main_menu_keyboard(),
-                )
-            return
-        offices: Sequence[Any] = await office_repo.get_by_organization(org.id)
-        if not offices:
-            if callback.message is not None and hasattr(callback.message, "edit_text"):
-                await callback.message.edit_text(
-                    text=f"No offices found for {org_name}.",
-                    reply_markup=get_back_to_main_menu_keyboard(),
-                )
-            return
-        office_lines = [f"{o.name} - {o.address}" for o in offices]
-        gmaps_url = generate_google_maps_multi_pin_url(offices)
-        amap_url = generate_apple_maps_multi_pin_url(offices)
-        response = (
-            f"Offices of <b>{org_name}</b>:\n\n"
-            + "\n".join(office_lines)
-            + f"\n\n<a href='{gmaps_url}'>Open all in Google Maps</a> | <a href='{amap_url}'>Open all in Apple Maps</a>"
-        )
-        if callback.message is not None and hasattr(callback.message, "edit_text"):
-            await callback.message.edit_text(
-                text=response,
-                reply_markup=get_back_to_main_menu_keyboard(),
-                parse_mode="HTML",
-            )
 
 
 @router.callback_query(F.data == "main_menu")
@@ -336,11 +201,11 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
 
     # Emoji map for currencies
     currency_emoji = {
-        "USD": "🇺🇸",
-        "EUR": "🇪🇺",
-        "GBP": "🇬🇧",
-        "RUB": "🇷🇺",
-        "GEL": "🇬🇪",
+        "USD": "\U0001f1fa\U0001f1f8",
+        "EUR": "\U0001f1ea\U0001f1fa",
+        "GBP": "\U0001f1ec\U0001f1e7",
+        "RUB": "\U0001f1f7\U0001f1fa",
+        "GEL": "\U0001f1ec\U0001f1ea",
     }
     pair_emoji = f"{currency_emoji.get(sell_currency, sell_currency)} → {currency_emoji.get(get_currency, get_currency)}"
 
@@ -411,336 +276,4 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
             text=response,
             reply_markup=get_back_to_main_menu_keyboard(),
             parse_mode="HTML",
-        )
-
-
-@router.callback_query(F.data == "find_office_menu")
-async def handle_find_office_menu(callback: CallbackQuery) -> None:
-    """
-    Show the office search options menu with explanation.
-    """
-    explanation = (
-        "\u2139\ufe0f <b>Find Nearest Office</b>\n"
-        "The first two options require you to share your location. "
-        "If you do not want to share your location, you can still browse all offices by organization."
-    )
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=explanation,
-            reply_markup=get_find_office_menu_keyboard(),
-            parse_mode="HTML",
-        )
-
-
-@router.callback_query(F.data == "find_best_rate_office")
-async def handle_find_best_rate_office(callback: CallbackQuery) -> None:
-    """
-    Ask the user to select a currency pair before prompting for location for best rate office search.
-    Now also prompt for open/closed office filter.
-    """
-    user_id = callback.from_user.id if callback.from_user else None
-    if user_id:
-        user_search_state[user_id] = {"mode": "find_best_rate_office"}
-    text = "Would you like to see only currently open offices or all offices?"
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_open_office_filter_keyboard(),
-        )
-
-
-@router.callback_query(F.data.startswith("find_best_sell_currency:"))
-async def handle_find_best_sell_currency(callback: CallbackQuery) -> None:
-    """
-    Handle sell currency selection for best rate office, then ask for get currency.
-    """
-    user_id = callback.from_user.id if callback.from_user else None
-    sell_currency = callback.data.split(":")[1] if callback.data else ""
-    options = [c for c in AVAILABLE_BOT_CURRENCIES if c != sell_currency]
-    if user_id:
-        state = user_search_state.setdefault(user_id, {"mode": "find_best_rate_office"})
-        state["sell_currency"] = sell_currency
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=f"Selected {sell_currency}. What currency do you want to get?",
-            reply_markup=get_currency_selection_keyboard(
-                currencies=options,
-                callback_prefix=f"find_best_get_currency:{sell_currency}",
-            ),
-        )
-
-
-@router.callback_query(F.data.startswith("find_best_get_currency:"))
-async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
-    """
-    Stateless: Always extract sell/get currency from callback data and prompt for open/closed office filter.
-    """
-    parts = callback.data.split(":") if callback.data else []
-    if len(parts) == 3:
-        sell_currency = parts[1]
-        get_currency = parts[2]
-    else:
-        sell_currency = "USD"
-        get_currency = "GEL"
-    text = (
-        f"You selected {sell_currency} → {get_currency}.\n"
-        "Would you like to see only currently open offices or all offices?"
-    )
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_open_office_filter_keyboard(),
-        )
-
-
-@router.callback_query(F.data == "find_office_by_org")
-async def handle_find_office_by_org(callback: CallbackQuery) -> None:
-    """
-    Show a list of organizations filtered by type (Bank or MicrofinanceOrganization).
-    """
-    async with async_get_db_session() as session:
-        org_repo = AsyncOrganizationRepository(session=session)
-        orgs = await org_repo.get_active_organizations()
-        orgs = [
-            o
-            for o in orgs
-            if getattr(o, "type", None) in ("Bank", "MicrofinanceOrganization")
-        ]
-        organizations = [o.name for o in orgs]
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text="Select an organization to view its offices:",
-            reply_markup=get_organization_keyboard(organizations=organizations),
-        )
-
-
-@router.callback_query(F.data == "share_location")
-async def handle_share_location(callback: CallbackQuery) -> None:
-    """
-    Prompt the user to share their location using a reply keyboard with request_location=True.
-    """
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Share location", request_location=True)],
-            [KeyboardButton(text="Cancel")],
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
-    if callback.message is not None:
-        await callback.message.answer(
-            "Please share your location using the button below.",
-            reply_markup=keyboard,
-        )
-        await callback.answer()
-
-
-@router.message(F.location)
-async def handle_location_message(message: Message) -> None:
-    """
-    Handle user location message for office search.
-    Determines context from user_search_state.
-    """
-    user_id = message.from_user.id if message.from_user else None
-    if not user_id or not message.location:
-        await message.reply("Could not determine user or location.")
-        return
-    state = user_search_state.get(user_id)
-    if state is None:
-        await message.reply(
-            "Session expired or context lost. Returning to main menu.",
-            reply_markup=get_main_menu_keyboard(),
-        )
-        return
-    lat = message.location.latitude
-    lon = message.location.longitude
-    async with async_get_db_session() as session:
-        org_repo = AsyncOrganizationRepository(session=session)
-        office_repo = AsyncOfficeRepository(session=session)
-        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
-        from src.repositories.schedule_repository import AsyncScheduleRepository
-        from src.db.models.schedule import Schedule
-
-        schedule_repo = AsyncScheduleRepository(session=session, model_class=Schedule)
-        # Filter orgs by type
-        orgs = await org_repo.get_active_organizations()
-        orgs = [
-            o
-            for o in orgs
-            if getattr(o, "type", None) in ("Bank", "MicrofinanceOrganization")
-        ]
-        offices: list[Any] = []
-        for org in orgs:
-            org_offices = await office_repo.get_by_organization(org.id)
-            for office in org_offices:
-                office.organization = org  # Attach org to office for later use
-            offices.extend(org_offices)
-        # Exclude offices with name 'Express' or 'Pawn'
-        offices = [o for o in offices if o.name.lower() not in ("express", "pawn")]
-        if not offices:
-            await message.reply("No offices found.")
-            return
-
-        # If open_only is set, filter by schedule
-        open_status_map: dict[Any, bool] = {}
-        if state.get("open_only") is True:
-            from datetime import datetime
-            import pytz
-
-            now = datetime.now(pytz.timezone("Asia/Tbilisi"))
-            weekday = now.weekday()  # 0=Monday
-            now_minutes = now.hour * 60 + now.minute
-            schedule_repo = AsyncScheduleRepository(
-                session=session, model_class=Schedule
-            )
-            open_offices = []
-            for office in offices:
-                schedules = await schedule_repo.get_by_office_id(office.id)
-                is_open = False
-                for sched in schedules:
-                    if (
-                        sched.day == weekday
-                        and sched.opens_at <= now_minutes < sched.closes_at
-                    ):
-                        is_open = True
-                        break
-                open_status_map[office.id] = is_open
-                if is_open:
-                    open_offices.append(office)
-            offices = open_offices
-            if not offices:
-                await message.reply("No offices are currently open.")
-                return
-        else:
-            # For polish: mark open/closed status for all offices
-            from datetime import datetime
-            import pytz
-
-            now = datetime.now(pytz.timezone("Asia/Tbilisi"))
-            weekday = now.weekday()
-            now_minutes = now.hour * 60 + now.minute
-            schedule_repo = AsyncScheduleRepository(
-                session=session, model_class=Schedule
-            )
-            for office in offices:
-                schedules = await schedule_repo.get_by_office_id(office.id)
-                is_open = False
-                for sched in schedules:
-                    if (
-                        sched.day == weekday
-                        and sched.opens_at <= now_minutes < sched.closes_at
-                    ):
-                        is_open = True
-                        break
-                open_status_map[office.id] = is_open
-
-        # Find nearest office
-        def office_distance(office):
-            return haversine_distance(lat, lon, office.lat, office.lng)
-
-        if state.get("mode") == "find_best_rate_office":
-            sell = state.get("sell_currency", "USD")
-            get = state.get("get_currency", "GEL")
-            # Find best rate office (reuse CurrencyService logic)
-            service = CurrencyService(org_repo, office_repo, rate_repo)
-            best_offices = await service.get_best_rates_for_pair(
-                sell_currency=sell, get_currency=get
-            )
-            # Map org name to office
-            best_org_names = {r["organization"] for r in best_offices}
-            offices = [o for o in offices if o.organization.name in best_org_names]
-            if not offices:
-                await message.reply("No offices with best rates found.")
-                return
-        nearest = min(offices, key=office_distance)
-        # Fetch rates for this office
-        office_rates = await rate_repo.get_rates_by_office(nearest.id, limit=10)
-        rates_lines = []
-        for rate in office_rates:
-            rates_lines.append(
-                f"{rate.currency}: {rate.buy_rate:.4f} / {rate.sell_rate:.4f}"
-            )
-        rates_str = "\n".join(rates_lines) if rates_lines else "No rates available."
-        # Map links
-        # gmaps = f"https://maps.google.com/?q={nearest.lat},{nearest.lng}"
-        # amap = f"http://maps.apple.com/?ll={nearest.lat},{nearest.lng}"
-        open_status = open_status_map.get(nearest.id)  # type: ignore[arg-type]
-        open_status_str = (
-            "<b>Status:</b> Open now" if open_status else "<b>Status:</b> Closed now"
-        )
-        # Fetch and format working hours
-        office_schedules = await schedule_repo.get_by_office_id(nearest.id)
-        schedule_dicts = [
-            {"day": s.day, "opens_at": s.opens_at, "closes_at": s.closes_at}
-            for s in office_schedules
-        ]
-        schedule_str = (
-            format_weekly_schedule(schedule_dicts)
-            if schedule_dicts
-            else "No schedule info."
-        )
-        office_info = (
-            f"🏢 <b>{nearest.name}</b>\n"
-            f"{nearest.address}\n"
-            f"{nearest.organization.name} ({getattr(nearest.organization, 'type', '-')})\n"
-            f"{open_status_str}\n"
-            f"\n🕒 <b>Working hours</b>:\n{schedule_str}"
-            f"\n💱 <b>Rates</b>:\n{rates_str}"
-        )
-        await message.answer(
-            office_info,
-            parse_mode="HTML",
-            reply_markup=get_back_to_main_menu_keyboard(),
-        )
-    # Clear state after use
-    user_search_state.pop(user_id, None)
-
-
-@router.callback_query(F.data == "filter_open_only")
-async def handle_filter_open_only(callback: CallbackQuery) -> None:
-    user_id = callback.from_user.id if callback.from_user else None
-    if user_id:
-        state = user_search_state.setdefault(user_id, {})
-        state["open_only"] = True
-    text = (
-        "Please share your location so we can find the nearest currently open exchange office. "
-        "Your location is only used for this search."
-    )
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_location_or_fallback_keyboard(),
-        )
-
-
-@router.callback_query(F.data == "filter_all_offices")
-async def handle_filter_all_offices(callback: CallbackQuery) -> None:
-    user_id = callback.from_user.id if callback.from_user else None
-    if user_id:
-        state = user_search_state.setdefault(user_id, {})
-        state["open_only"] = False
-    text = (
-        "Please share your location so we can find the nearest exchange office. "
-        "Your location is only used for this search."
-    )
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_location_or_fallback_keyboard(),
-        )
-
-
-@router.callback_query(F.data == "find_nearest_office")
-async def handle_find_nearest_office(callback: CallbackQuery) -> None:
-    """
-    Prompt the user to choose open/closed filter before sharing their location.
-    """
-    user_id = callback.from_user.id if callback.from_user else None
-    if user_id:
-        user_search_state[user_id] = {"mode": "find_nearest_office"}
-    text = "Would you like to see only currently open offices or all offices?"
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_open_office_filter_keyboard(),
         )
