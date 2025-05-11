@@ -11,6 +11,12 @@ from src.bot.keyboards.inline import (
     get_back_to_main_menu_keyboard,
 )
 from src.config.logging_conf import get_logger
+from src.services.currency_service import CurrencyService
+from src.repositories.organization_repository import AsyncOrganizationRepository
+from src.repositories.office_repository import AsyncOfficeRepository
+from src.repositories.rate_repository import AsyncRateRepository
+from src.db.session import async_get_db_session
+from src.db.models.rate import Rate
 
 router = Router(name="conversion_router")
 logger = get_logger(__name__)
@@ -51,16 +57,39 @@ async def handle_from_currency_selection(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("to_currency:"))
 async def handle_to_currency_selection(callback: CallbackQuery) -> None:
     """
-    Handle the second currency selection and show rates (stub).
+    Handle the second currency selection and show real best rates between currencies.
     """
-    # TODO: Implement actual rate fetching from CurrencyService
-    rates = [
-        "1 USD = 0.93 EUR (Bank of Georgia)",
-        "1 USD = 0.79 GBP (TBC Bank)",
-        "1 USD = 31.18 TRY (Liberty Bank)",
-        "1 USD = 91.38 RUB (ProCredit Bank)",
-    ]
-    response = "Top 5 best rates between currencies:\n\n" + "\n".join(rates)
+    # Parse from_currency from previous message or context
+    from_currency = None
+    if callback.message and callback.message.text:
+        import re
+        match = re.match(r"Selected (\w+). Now select second currency:", callback.message.text)
+        if match:
+            from_currency = match.group(1)
+    if not from_currency:
+        from_currency = "USD"  # fallback
+    to_currency = callback.data.split(":")[1] if callback.data else ""
+    # Fetch best rates for the selected pair
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        office_repo = AsyncOfficeRepository(session=session)
+        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        service = CurrencyService(org_repo, office_repo, rate_repo)
+        rates = await service.get_best_rates_for_pair(
+            sell_currency=from_currency, get_currency=to_currency
+        )
+    if not rates:
+        response = f"No rates available for {from_currency} → {to_currency}."
+    else:
+        name_width = 15
+        header = f"{from_currency} → {to_currency}\n{'Organization':<{name_width}} | {'Rate':>10}"
+        sep = "─" * (name_width + 3 + 10)
+        lines = [header, sep]
+        for r in rates:
+            org = r["organization"]
+            rate_str = f"{r['rate']:.4f}"
+            lines.append(f"{org:<{name_width}} | {rate_str:>10}")
+        response = "\n".join(lines)
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
             text=response, reply_markup=get_back_to_main_menu_keyboard()

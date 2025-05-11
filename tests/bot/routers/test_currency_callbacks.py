@@ -401,13 +401,16 @@ async def test_handle_to_currency_selection(monkeypatch):
 
     msg = AsyncMock(spec=Message)
     msg.edit_text.side_effect = edit_text
+    msg.text = 'Selected USD. Now select second currency:'
     callback = SimpleNamespace(message=msg, data="to_currency:EUR")
     monkeypatch.setattr(
         "src.bot.routers.conversion.get_back_to_main_menu_keyboard",
         lambda *args, **kwargs: "keyboard",
     )
     await handle_to_currency_selection(callback)
-    assert "Top 5 best rates between currencies:" in sent["text"]
+    assert "USD" in sent["text"]
+    assert "EUR" in sent["text"]
+    assert "Organization" in sent["text"]
 
 
 @pytest.mark.asyncio
