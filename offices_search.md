@@ -20,40 +20,40 @@ This document outlines the implementation plan for the "Find Nearest Office" and
 
 ### 2.1. "Find Nearest Office" and "Find Nearest Office with Best Rates"
 
-- [ ] Prompt user to share location.
-- [ ] If user declines, show two buttons:
-  - [ ] "Share location" (retry)
-  - [ ] "List organizations" (fallback, leads to map with pins for all offices)
+- [x] Prompt user to share location.
+- [x] If user declines, show two buttons:
+  - [x] "Share location" (retry)
+  - [x] "List organizations" (fallback, leads to map with pins for all offices)
 
 ### 2.2. "Find Nearest Office with Best Rates"
 
-- [ ] Before location prompt: Ask user to select the currency pair (reuse existing best rates logic).
-- [ ] After currency pair selection: Prompt for location, then proceed as in 2.1.
+- [x] Before location prompt: Ask user to select the currency pair (reuse existing best rates logic).
+- [x] After currency pair selection: Prompt for location, then proceed as in 2.1.
 
 ### 2.3. "Show All Offices of a Chosen Organization"
 
-- [ ] Show a list of organizations (filtered by type: `Bank` or `MicrofinanceOrganization`).
+- [x] Show a list of organizations (filtered by type: `Bank` or `MicrofinanceOrganization`).
 - [ ] On selection, show all offices for that organization.
 
 ---
 
 ## 3. Business Logic & Filtering
 
-- [ ] All office searches, best rates, and organization lists must only include organizations where `type` is `"Bank"` or `"MicrofinanceOrganization"`.
-- [ ] Fallback map and lists must also apply this filter.
+- [x] All office searches, best rates, and organization lists must only include organizations where `type` is `"Bank"` or `"MicrofinanceOrganization"`.
+- [x] Fallback map and lists must also apply this filter.
 
 ---
 
 ## 4. Location Handling
 
-- [ ] When user shares location:
-  - [ ] Calculate the distance from user to each office (using latitude/longitude).
-  - [ ] For "nearest office," select the closest office.
-  - [ ] For "nearest office with best rates," filter offices by best rate for the selected currency pair, then select the closest among them.
+- [x] When user shares location:
+  - [x] Calculate the distance from user to each office (using latitude/longitude).
+  - [x] For "nearest office," select the closest office.
+  - [x] For "nearest office with best rates," filter offices by best rate for the selected currency pair, then select the closest among them.
 
-- [ ] When user does not share location:
-  - [ ] Show two buttons: "Share location" and "List organizations."
-  - [ ] If "List organizations" is chosen, show a list of organizations (filtered as above), then show all offices for the selected organization.
+- [x] When user does not share location:
+  - [x] Show two buttons: "Share location" and "List organizations."
+  - [x] If "List organizations" is chosen, show a list of organizations (filtered as above), then show all offices for the selected organization.
 
 ---
 
@@ -63,56 +63,56 @@ This document outlines the implementation plan for the "Find Nearest Office" and
   - [ ] Generate a Google Maps link and an Apple Maps link with pins for all offices of the selected organization (or all offices, if needed).
   - [ ] Present both links to the user with clear labels.
 
-- [ ] For location-based search:
-  - [ ] For the nearest office, provide a button to open directions in Google Maps and a button for Apple Maps, pre-filled with the office address/coordinates.
+- [x] For location-based search:
+  - [x] For the nearest office, provide a button to open directions in Google Maps and a button for Apple Maps, pre-filled with the office address/coordinates.
 
 ---
 
 ## 6. Service Layer
 
-- [ ] Extend or add service methods:
-  - [ ] To filter organizations by type.
-  - [ ] To find nearest office given user coordinates.
-  - [ ] To find nearest office with best rates for a currency pair.
-  - [ ] To generate map links for a set of offices.
+- [x] Extend or add service methods:
+  - [x] To filter organizations by type.
+  - [x] To find nearest office given user coordinates.
+  - [x] To find nearest office with best rates for a currency pair.
+  - [x] To generate map links for a set of offices.
 
 ---
 
 ## 7. Data Validation & Models
 
-- [ ] Use Pydantic models for all user input (location, currency pair, etc.).
-- [ ] Ensure all new endpoints and services are type-annotated and validated.
+- [x] Use Pydantic models for all user input (location, currency pair, etc.).
+- [x] Ensure all new endpoints and services are type-annotated and validated.
 
 ---
 
 ## 8. Error Handling & UX
 
-- [ ] Handle missing data gracefully (e.g., no offices found, no rates available).
-- [ ] Log all errors with context.
-- [ ] Provide user-friendly messages for all fallback and error scenarios.
+- [x] Handle missing data gracefully (e.g., no offices found, no rates available).
+- [x] Log all errors with context.
+- [x] Provide user-friendly messages for all fallback and error scenarios.
 
 ---
 
 ## 9. Testing
 
-- [ ] Add/extend pytest tests for:
-  - [ ] Service logic (distance calculation, filtering, best rates)
-  - [ ] Routing and user flows (location/no location, currency pair selection)
-  - [ ] Map link generation
+- [x] Add/extend pytest tests for:
+  - [x] Service logic (distance calculation, filtering, best rates)
+  - [x] Routing and user flows (location/no location, currency pair selection)
+  - [x] Map link generation
 
 ---
 
 ## 10. Documentation
 
-- [ ] Update docstrings for all new/modified functions and classes (PEP257).
-- [ ] Update README to describe the new features and user flows.
+- [x] Update docstrings for all new/modified functions and classes (PEP257).
+- [x] Update README to describe the new features and user flows.
 
 ---
 
 ## 11. Code Style & CI
 
-- [ ] Run Ruff and mypy to ensure code style and type correctness.
-- [ ] Update CI/CD pipeline if needed to include new tests.
+- [x] Run Ruff and mypy to ensure code style and type correctness.
+- [x] Update CI/CD pipeline if needed to include new tests.
 
 ---
 

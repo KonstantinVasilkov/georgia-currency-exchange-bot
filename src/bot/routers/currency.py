@@ -3,6 +3,8 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, Message as AiogramMessage
 from datetime import datetime, UTC, timedelta
+from math import radians, cos, sin, sqrt, atan2
+from typing import Any
 
 from src.bot.keyboards.inline import (
     get_main_menu_keyboard,
@@ -10,6 +12,7 @@ from src.bot.keyboards.inline import (
     get_organization_keyboard,
     get_back_to_main_menu_keyboard,
     get_find_office_menu_keyboard,
+    get_location_or_fallback_keyboard,
 )
 from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
@@ -28,6 +31,22 @@ AVAILABLE_CURRENCIES = ["USD", "EUR", "GBP", "TRY", "RUB"]
 AVAILABLE_BOT_CURRENCIES = ["USD", "EUR", "GBP", "RUB", "GEL"]
 
 logger = get_logger(__name__)
+
+# Simple in-memory state for demo (user_id -> context)
+user_search_state: dict[int, dict[str, Any]] = {}
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate the great-circle distance between two points (km)."""
+    R = 6371.0  # Earth radius in km
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = (
+        sin(dlat / 2) ** 2
+        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    )
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
 
 
 @router.callback_query(F.data == "best_rates")
@@ -391,3 +410,172 @@ async def handle_find_office_menu(callback: CallbackQuery) -> None:
             reply_markup=get_find_office_menu_keyboard(),
             parse_mode="HTML",
         )
+
+
+@router.callback_query(F.data == "find_nearest_office")
+async def handle_find_nearest_office(callback: CallbackQuery) -> None:
+    """
+    Prompt the user to share their location for finding the nearest office.
+    """
+    user_id = callback.from_user.id if callback.from_user else None
+    if user_id:
+        user_search_state[user_id] = {"mode": "find_nearest_office"}
+    text = (
+        "Please share your location so we can find the nearest exchange office. "
+        "Your location is only used for this search."
+    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_location_or_fallback_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "find_best_rate_office")
+async def handle_find_best_rate_office(callback: CallbackQuery) -> None:
+    """
+    Ask the user to select a currency pair before prompting for location for best rate office search.
+    """
+    # Reuse currency selection logic (sell currency first)
+    user_id = callback.from_user.id if callback.from_user else None
+    if user_id:
+        user_search_state[user_id] = {"mode": "find_best_rate_office"}
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text="Which currency do you want to sell?",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=AVAILABLE_BOT_CURRENCIES,
+                callback_prefix="find_best_sell_currency",
+            ),
+        )
+
+
+@router.callback_query(F.data.startswith("find_best_sell_currency:"))
+async def handle_find_best_sell_currency(callback: CallbackQuery) -> None:
+    """
+    Handle sell currency selection for best rate office, then ask for get currency.
+    """
+    user_id = callback.from_user.id if callback.from_user else None
+    sell_currency = callback.data.split(":")[1] if callback.data else ""
+    options = [c for c in AVAILABLE_BOT_CURRENCIES if c != sell_currency]
+    if user_id:
+        state = user_search_state.setdefault(user_id, {"mode": "find_best_rate_office"})
+        state["sell_currency"] = sell_currency
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=f"Selected {sell_currency}. What currency do you want to get?",
+            reply_markup=get_currency_selection_keyboard(
+                currencies=options,
+                callback_prefix=f"find_best_get_currency:{sell_currency}",
+            ),
+        )
+
+
+@router.callback_query(F.data.startswith("find_best_get_currency:"))
+async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
+    """
+    Handle get currency selection for best rate office, then prompt for location.
+    """
+    user_id = callback.from_user.id if callback.from_user else None
+    parts = callback.data.split(":")
+    if len(parts) == 3:
+        sell_currency = parts[1]
+        get_currency = parts[2]
+    else:
+        sell_currency = "USD"
+        get_currency = "GEL"
+    if user_id:
+        state = user_search_state.setdefault(user_id, {"mode": "find_best_rate_office"})
+        state["sell_currency"] = sell_currency
+        state["get_currency"] = get_currency
+    text = (
+        f"You selected {sell_currency} → {get_currency}.\n"
+        "Please share your location so we can find the nearest office with the best rate for this pair."
+    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_location_or_fallback_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "find_office_by_org")
+async def handle_find_office_by_org(callback: CallbackQuery) -> None:
+    """
+    Show a list of organizations filtered by type (Bank or MicrofinanceOrganization).
+    """
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        orgs = await org_repo.get_active_organizations()
+        orgs = [
+            o
+            for o in orgs
+            if getattr(o, "type", None) in ("Bank", "MicrofinanceOrganization")
+        ]
+        organizations = [o.name for o in orgs]
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text="Select an organization to view its offices:",
+            reply_markup=get_organization_keyboard(organizations=organizations),
+        )
+
+
+@router.message(F.location)
+async def handle_location_message(message: Message) -> None:
+    """
+    Handle user location message for office search.
+    Determines context from user_search_state.
+    """
+    user_id = message.from_user.id if message.from_user else None
+    if not user_id or not message.location:
+        await message.reply("Could not determine user or location.")
+        return
+    state = user_search_state.get(user_id, {})
+    lat = message.location.latitude
+    lon = message.location.longitude
+    async with async_get_db_session() as session:
+        org_repo = AsyncOrganizationRepository(session=session)
+        office_repo = AsyncOfficeRepository(session=session)
+        rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        # Filter orgs by type
+        orgs = await org_repo.get_active_organizations()
+        orgs = [
+            o
+            for o in orgs
+            if getattr(o, "type", None) in ("Bank", "MicrofinanceOrganization")
+        ]
+        offices = []
+        for org in orgs:
+            offices.extend(await office_repo.get_by_organization(org.id))
+        if not offices:
+            await message.reply("No offices found.")
+            return
+        # Find nearest office
+        def office_distance(office):
+            return haversine_distance(lat, lon, office.lat, office.lng)
+        if state.get("mode") == "find_best_rate_office":
+            sell = state.get("sell_currency", "USD")
+            get = state.get("get_currency", "GEL")
+            # Find best rate office (reuse CurrencyService logic)
+            service = CurrencyService(org_repo, office_repo, rate_repo)
+            best_offices = await service.get_best_rates_for_pair(sell_currency=sell, get_currency=get)
+            # Map org name to office
+            best_org_names = {r["organization"] for r in best_offices}
+            offices = [o for o in offices if o.organization.name in best_org_names]
+            if not offices:
+                await message.reply("No offices with best rates found.")
+                return
+        nearest = min(offices, key=office_distance)
+        distance_km = office_distance(nearest)
+        # Map links
+        gmaps = f"https://maps.google.com/?q={nearest.lat},{nearest.lng}"
+        amap = f"http://maps.apple.com/?ll={nearest.lat},{nearest.lng}"
+        text = (
+            f"Nearest office: <b>{nearest.name}</b>\n"
+            f"Address: {nearest.address}\n"
+            f"Distance: {distance_km:.2f} km\n"
+            f"<a href='{gmaps}'>Open in Google Maps</a> | <a href='{amap}'>Open in Apple Maps</a>"
+        )
+        await message.answer(text, parse_mode="HTML")
+    # Clear state after use
+    user_search_state.pop(user_id, None)
