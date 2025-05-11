@@ -14,6 +14,8 @@ dependencies = [
     "apscheduler>=3.11.0",
     "aiosqlite>=0.21.0",
     "greenlet>=3.2.1",
+    "pytz>=2025.2",
+    "types-pytz>=2025.2.0.20250326",
 ]
 
 [dependency-groups]

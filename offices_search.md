@@ -117,6 +117,25 @@ This document outlines the implementation plan for the "Find Nearest Office" and
 
 ---
 
+## 12. Open/Closed Office Filtering and Type Exclusion (Planned)
+
+- [x] Exclude all offices where the name is 'Express' or 'Pawn' (case-insensitive) from all office searches and listings.
+- [x] Before searching for offices, prompt the user: "Do you want to see only currently open offices or all offices?" (inline keyboard: Only open, All offices)
+- [x] If the user selects "Only open":
+    - For each office, check the schedule table for today and current time.
+    - Only include offices that are open now (i.e., there is a schedule row for today where opens_at <= now < closes_at).
+- [x] If the user selects "All offices":
+    - Show all offices (except those excluded by type).
+- [x] Ensure this logic is applied to both "Find Nearest Office" and "Find Nearest Office with Best Rates" flows.
+- [x] Show "Open now"/"Closed now" status in office listings.
+- [x] Show working hours for each office in the response.
+- [x] Make the best rate flow stateless: do not rely on previous user input or state.
+
+**Note:**
+- Improved testability and statelessness for all user flows.
+
+---
+
 ### Optional (Future-proofing)
 
 - [ ] Consider abstracting city support for future multi-city expansion.

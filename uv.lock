@@ -328,7 +328,9 @@ dependencies = [
     { name = "greenlet" },
     { name = "loguru" },
     { name = "pydantic-settings" },
+    { name = "pytz" },
     { name = "sqlmodel" },
+    { name = "types-pytz" },
 ]
 
 [package.dev-dependencies]
@@ -350,7 +352,9 @@ requires-dist = [
     { name = "greenlet", specifier = ">=3.2.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
+    { name = "pytz", specifier = ">=2025.2" },
     { name = "sqlmodel", specifier = ">=0.0.24" },
+    { name = "types-pytz", specifier = ">=2025.2.0.20250326" },
 ]
 
 [package.metadata.requires-dev]
@@ -844,6 +848,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytz"
+version = "2025.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3", size = 320884, upload_time = "2025-03-25T02:25:00.538Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/c4/34e93fe5f5429d7570ec1fa436f1986fb1f00c3e0f43a589fe2bbcd22c3f/pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00", size = 509225, upload_time = "2025-03-25T02:24:58.468Z" },
+]
+
+[[package]]
 name = "ruff"
 version = "0.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -916,6 +929,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/86/4b/c2ad0496f5bdc6073d9b4cef52be9c04f2b37a5773441cc6600b1857648b/sqlmodel-0.0.24.tar.gz", hash = "sha256:cc5c7613c1a5533c9c7867e1aab2fd489a76c9e8a061984da11b4e613c182423", size = 116780, upload_time = "2025-03-07T05:43:32.887Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/91/484cd2d05569892b7fef7f5ceab3bc89fb0f8a8c0cde1030d383dbc5449c/sqlmodel-0.0.24-py3-none-any.whl", hash = "sha256:6778852f09370908985b667d6a3ab92910d0d5ec88adcaf23dbc242715ff7193", size = 28622, upload_time = "2025-03-07T05:43:30.37Z" },
+]
+
+[[package]]
+name = "types-pytz"
+version = "2025.2.0.20250326"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/66/38c89861242f2c61c8315ddbcc7d7bbf64979f4b0bdc48db0ba62aeec330/types_pytz-2025.2.0.20250326.tar.gz", hash = "sha256:deda02de24f527066fc8d6a19e284ab3f3ae716a42b4adb6b40e75e408c08d36", size = 10595, upload_time = "2025-03-26T02:53:12.504Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/e0/17f3a6670db5c95dc195f346e2e7290f22ba8327c188133959389b578cbd/types_pytz-2025.2.0.20250326-py3-none-any.whl", hash = "sha256:3c397fd1b845cd2b3adc9398607764ced9e578a98a5d1fbb4a9bc9253edfb162", size = 10222, upload_time = "2025-03-26T02:53:11.145Z" },
 ]
 
 [[package]]

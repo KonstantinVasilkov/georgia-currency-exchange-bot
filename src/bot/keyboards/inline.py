@@ -30,9 +30,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
         )
     )
     builder.row(
-        InlineKeyboardButton(
-            text="Share location", callback_data="share_location"
-        )
+        InlineKeyboardButton(text="Share location", callback_data="share_location")
     )
     return builder.as_markup()
 
@@ -138,6 +136,25 @@ def get_location_or_fallback_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="List organizations", callback_data="find_office_by_org"
         )
+    )
+    builder.row(
+        InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
+    )
+    return builder.as_markup()
+
+
+def get_open_office_filter_keyboard() -> InlineKeyboardMarkup:
+    """Get keyboard for open/closed office filter prompt.
+
+    Returns:
+        InlineKeyboardMarkup: The keyboard for open/closed filter.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Only open offices", callback_data="filter_open_only")
+    )
+    builder.row(
+        InlineKeyboardButton(text="All offices", callback_data="filter_all_offices")
     )
     builder.row(
         InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")

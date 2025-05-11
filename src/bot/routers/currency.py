@@ -19,6 +19,7 @@ from src.bot.keyboards.inline import (
     get_back_to_main_menu_keyboard,
     get_find_office_menu_keyboard,
     get_location_or_fallback_keyboard,
+    get_open_office_filter_keyboard,
 )
 from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
@@ -27,6 +28,7 @@ from src.repositories.rate_repository import AsyncRateRepository
 from src.config.logging_conf import get_logger
 from src.db.session import async_get_db_session
 from src.db.models.rate import Rate
+from src.utils.schedule_parser import format_weekly_schedule
 
 router = Router(name="currency_router")
 
@@ -453,41 +455,20 @@ async def handle_find_office_menu(callback: CallbackQuery) -> None:
         )
 
 
-@router.callback_query(F.data == "find_nearest_office")
-async def handle_find_nearest_office(callback: CallbackQuery) -> None:
-    """
-    Prompt the user to share their location for finding the nearest office.
-    """
-    user_id = callback.from_user.id if callback.from_user else None
-    if user_id:
-        user_search_state[user_id] = {"mode": "find_nearest_office"}
-    text = (
-        "Please share your location so we can find the nearest exchange office. "
-        "Your location is only used for this search."
-    )
-    if callback.message is not None and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_location_or_fallback_keyboard(),
-        )
-
-
 @router.callback_query(F.data == "find_best_rate_office")
 async def handle_find_best_rate_office(callback: CallbackQuery) -> None:
     """
     Ask the user to select a currency pair before prompting for location for best rate office search.
+    Now also prompt for open/closed office filter.
     """
-    # Reuse currency selection logic (sell currency first)
     user_id = callback.from_user.id if callback.from_user else None
     if user_id:
         user_search_state[user_id] = {"mode": "find_best_rate_office"}
+    text = "Would you like to see only currently open offices or all offices?"
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
-            text="Which currency do you want to sell?",
-            reply_markup=get_currency_selection_keyboard(
-                currencies=AVAILABLE_BOT_CURRENCIES,
-                callback_prefix="find_best_sell_currency",
-            ),
+            text=text,
+            reply_markup=get_open_office_filter_keyboard(),
         )
 
 
@@ -515,9 +496,8 @@ async def handle_find_best_sell_currency(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("find_best_get_currency:"))
 async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
     """
-    Handle get currency selection for best rate office, then prompt for location.
+    Stateless: Always extract sell/get currency from callback data and prompt for open/closed office filter.
     """
-    user_id = callback.from_user.id if callback.from_user else None
     parts = callback.data.split(":") if callback.data else []
     if len(parts) == 3:
         sell_currency = parts[1]
@@ -525,18 +505,14 @@ async def handle_find_best_get_currency(callback: CallbackQuery) -> None:
     else:
         sell_currency = "USD"
         get_currency = "GEL"
-    if user_id:
-        state = user_search_state.setdefault(user_id, {"mode": "find_best_rate_office"})
-        state["sell_currency"] = sell_currency
-        state["get_currency"] = get_currency
     text = (
         f"You selected {sell_currency} → {get_currency}.\n"
-        "Please share your location so we can find the nearest office with the best rate for this pair."
+        "Would you like to see only currently open offices or all offices?"
     )
     if callback.message is not None and isinstance(callback.message, Message):
         await callback.message.edit_text(
             text=text,
-            reply_markup=get_location_or_fallback_keyboard(),
+            reply_markup=get_open_office_filter_keyboard(),
         )
 
 
@@ -599,6 +575,10 @@ async def handle_location_message(message: Message) -> None:
         org_repo = AsyncOrganizationRepository(session=session)
         office_repo = AsyncOfficeRepository(session=session)
         rate_repo = AsyncRateRepository(session=session, model_class=Rate)
+        from src.repositories.schedule_repository import AsyncScheduleRepository
+        from src.db.models.schedule import Schedule
+
+        schedule_repo = AsyncScheduleRepository(session=session, model_class=Schedule)
         # Filter orgs by type
         orgs = await org_repo.get_active_organizations()
         orgs = [
@@ -612,9 +592,64 @@ async def handle_location_message(message: Message) -> None:
             for office in org_offices:
                 office.organization = org  # Attach org to office for later use
             offices.extend(org_offices)
+        # Exclude offices with name 'Express' or 'Pawn'
+        offices = [o for o in offices if o.name.lower() not in ("express", "pawn")]
         if not offices:
             await message.reply("No offices found.")
             return
+
+        # If open_only is set, filter by schedule
+        open_status_map: dict[Any, bool] = {}
+        if state.get("open_only") is True:
+            from datetime import datetime
+            import pytz
+
+            now = datetime.now(pytz.timezone("Asia/Tbilisi"))
+            weekday = now.weekday()  # 0=Monday
+            now_minutes = now.hour * 60 + now.minute
+            schedule_repo = AsyncScheduleRepository(
+                session=session, model_class=Schedule
+            )
+            open_offices = []
+            for office in offices:
+                schedules = await schedule_repo.get_by_office_id(office.id)
+                is_open = False
+                for sched in schedules:
+                    if (
+                        sched.day == weekday
+                        and sched.opens_at <= now_minutes < sched.closes_at
+                    ):
+                        is_open = True
+                        break
+                open_status_map[office.id] = is_open
+                if is_open:
+                    open_offices.append(office)
+            offices = open_offices
+            if not offices:
+                await message.reply("No offices are currently open.")
+                return
+        else:
+            # For polish: mark open/closed status for all offices
+            from datetime import datetime
+            import pytz
+
+            now = datetime.now(pytz.timezone("Asia/Tbilisi"))
+            weekday = now.weekday()
+            now_minutes = now.hour * 60 + now.minute
+            schedule_repo = AsyncScheduleRepository(
+                session=session, model_class=Schedule
+            )
+            for office in offices:
+                schedules = await schedule_repo.get_by_office_id(office.id)
+                is_open = False
+                for sched in schedules:
+                    if (
+                        sched.day == weekday
+                        and sched.opens_at <= now_minutes < sched.closes_at
+                    ):
+                        is_open = True
+                        break
+                open_status_map[office.id] = is_open
 
         # Find nearest office
         def office_distance(office):
@@ -635,28 +670,92 @@ async def handle_location_message(message: Message) -> None:
                 await message.reply("No offices with best rates found.")
                 return
         nearest = min(offices, key=office_distance)
-        distance_km = office_distance(nearest)
         # Fetch rates for this office
         office_rates = await rate_repo.get_rates_by_office(nearest.id, limit=10)
         rates_lines = []
         for rate in office_rates:
-            rates_lines.append(f"{rate.currency}: {rate.buy:.4f} / {rate.sell:.4f}")
+            rates_lines.append(
+                f"{rate.currency}: {rate.buy_rate:.4f} / {rate.sell_rate:.4f}"
+            )
         rates_str = "\n".join(rates_lines) if rates_lines else "No rates available."
         # Map links
-        gmaps = f"https://maps.google.com/?q={nearest.lat},{nearest.lng}"
-        amap = f"http://maps.apple.com/?ll={nearest.lat},{nearest.lng}"
-        text = (
-            f"Nearest office: <b>{nearest.name}</b>\n"
-            f"Organization: <b>{nearest.organization.name}</b> ({getattr(nearest.organization, 'type', '-')})\n"
-            f"Address: {nearest.address}\n"
-            f"Distance: {distance_km:.2f} km\n"
-            f"<a href='{gmaps}'>Open in Google Maps</a> | <a href='{amap}'>Open in Apple Maps</a>\n\n"
-            f"<b>Rates:</b>\n{rates_str}"
+        # gmaps = f"https://maps.google.com/?q={nearest.lat},{nearest.lng}"
+        # amap = f"http://maps.apple.com/?ll={nearest.lat},{nearest.lng}"
+        open_status = open_status_map.get(nearest.id)  # type: ignore[arg-type]
+        open_status_str = (
+            "<b>Status:</b> Open now" if open_status else "<b>Status:</b> Closed now"
         )
-        await message.answer(text, parse_mode="HTML")
+        # Fetch and format working hours
+        office_schedules = await schedule_repo.get_by_office_id(nearest.id)
+        schedule_dicts = [
+            {"day": s.day, "opens_at": s.opens_at, "closes_at": s.closes_at}
+            for s in office_schedules
+        ]
+        schedule_str = (
+            format_weekly_schedule(schedule_dicts)
+            if schedule_dicts
+            else "No schedule info."
+        )
+        office_info = (
+            f"🏢 <b>{nearest.name}</b>\n"
+            f"{nearest.address}\n"
+            f"{nearest.organization.name} ({getattr(nearest.organization, 'type', '-')})\n"
+            f"{open_status_str}\n"
+            f"\n🕒 <b>Working hours</b>:\n{schedule_str}"
+            f"\n💱 <b>Rates</b>:\n{rates_str}"
+        )
+        await message.answer(office_info, parse_mode="HTML")
     # Clear state after use
     user_search_state.pop(user_id, None)
     # Remove the reply keyboard and show main menu
-    await message.answer(
-        "Main menu:", reply_markup=get_main_menu_keyboard()
+    await message.answer("Main menu:", reply_markup=get_main_menu_keyboard())
+
+
+@router.callback_query(F.data == "filter_open_only")
+async def handle_filter_open_only(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id if callback.from_user else None
+    if user_id:
+        state = user_search_state.setdefault(user_id, {})
+        state["open_only"] = True
+    text = (
+        "Please share your location so we can find the nearest currently open exchange office. "
+        "Your location is only used for this search."
     )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_location_or_fallback_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "filter_all_offices")
+async def handle_filter_all_offices(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id if callback.from_user else None
+    if user_id:
+        state = user_search_state.setdefault(user_id, {})
+        state["open_only"] = False
+    text = (
+        "Please share your location so we can find the nearest exchange office. "
+        "Your location is only used for this search."
+    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_location_or_fallback_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "find_nearest_office")
+async def handle_find_nearest_office(callback: CallbackQuery) -> None:
+    """
+    Prompt the user to choose open/closed filter before sharing their location.
+    """
+    user_id = callback.from_user.id if callback.from_user else None
+    if user_id:
+        user_search_state[user_id] = {"mode": "find_nearest_office"}
+    text = "Would you like to see only currently open offices or all offices?"
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=text,
+            reply_markup=get_open_office_filter_keyboard(),
+        )
