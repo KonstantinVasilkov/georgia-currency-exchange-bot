@@ -7,12 +7,17 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
-    """Get the main menu keyboard.
+    """Get the main menu keyboard with office search option.
 
     Returns:
         InlineKeyboardMarkup: The main menu keyboard.
     """
     builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Find Nearest Office", callback_data="find_office_menu"
+        )
+    )
     builder.row(InlineKeyboardButton(text="Best Rates", callback_data="best_rates"))
     builder.row(
         InlineKeyboardButton(
@@ -77,6 +82,37 @@ def get_back_to_main_menu_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup: The back to main menu keyboard.
     """
     builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
+    )
+    return builder.as_markup()
+
+
+def get_find_office_menu_keyboard() -> InlineKeyboardMarkup:
+    """Get the office search options keyboard.
+
+    Returns:
+        InlineKeyboardMarkup: The office search options keyboard.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Find nearest office (share location)",
+            callback_data="find_nearest_office",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Find nearest office with best rates (share location)",
+            callback_data="find_best_rate_office",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Show all offices of a chosen organization",
+            callback_data="find_office_by_org",
+        )
+    )
     builder.row(
         InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
     )

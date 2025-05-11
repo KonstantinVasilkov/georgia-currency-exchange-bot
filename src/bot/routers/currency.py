@@ -9,6 +9,7 @@ from src.bot.keyboards.inline import (
     get_currency_selection_keyboard,
     get_organization_keyboard,
     get_back_to_main_menu_keyboard,
+    get_find_office_menu_keyboard,
 )
 from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
@@ -164,7 +165,9 @@ async def handle_main_menu(callback: CallbackQuery) -> None:
 
         # Format table
         name_width = 15
-        header = f"{'Organization':<{name_width}} | {'USD':>7} | {'EUR':>7} | {'RUB':>7}"
+        header = (
+            f"{'Organization':<{name_width}} | {'USD':>7} | {'EUR':>7} | {'RUB':>7}"
+        )
         sep = "─" * (name_width + 3 + 7 + 3 + 7 + 3 + 7)
         lines = [header, sep]
         for row in rows[:4]:  # NBG + 3 online banks
@@ -218,6 +221,7 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
     if isinstance(callback.message, AiogramMessage) and callback.message.text:
         # Message text is like: 'Selected USD. What currency do you want to get?'
         import re
+
         match = re.match(
             r"Selected (\w+). What currency do you want to get?", callback.message.text
         )
@@ -248,7 +252,9 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         rate_repo = AsyncRateRepository(session=session, model_class=Rate)
         for r in rates:
             org_name_obj = r["organization"]
-            org_name_str = str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            org_name_str = (
+                str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            )
             org = await org_repo.find_one_by(name=org_name_str)
             if not org:
                 continue
@@ -330,7 +336,9 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         other_rows = []
         for r in rates:
             org_name_obj = r["organization"]
-            org_name_str = str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            org_name_str = (
+                str(org_name_obj) if not isinstance(org_name_obj, str) else org_name_obj
+            )
             display_org = org_name_map.get(org_name_str, org_name_str)
             display_org = trim_name(display_org, name_width)
             rate_str = f"{r['rate']:.4f}"
@@ -363,5 +371,23 @@ async def handle_get_currency_selection(callback: CallbackQuery) -> None:
         await callback.message.edit_text(
             text=response,
             reply_markup=get_back_to_main_menu_keyboard(),
+            parse_mode="HTML",
+        )
+
+
+@router.callback_query(F.data == "find_office_menu")
+async def handle_find_office_menu(callback: CallbackQuery) -> None:
+    """
+    Show the office search options menu with explanation.
+    """
+    explanation = (
+        "\u2139\ufe0f <b>Find Nearest Office</b>\n"
+        "The first two options require you to share your location. "
+        "If you do not want to share your location, you can still browse all offices by organization."
+    )
+    if callback.message is not None and isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text=explanation,
+            reply_markup=get_find_office_menu_keyboard(),
             parse_mode="HTML",
         )
