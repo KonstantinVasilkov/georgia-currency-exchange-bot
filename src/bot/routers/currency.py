@@ -1,7 +1,14 @@
 """Router for currency exchange functionality."""
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, Message as AiogramMessage
+from aiogram.types import (
+    CallbackQuery,
+    Message,
+    Message as AiogramMessage,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+)
 from datetime import datetime, UTC, timedelta
 from math import radians, cos, sin, sqrt, atan2
 from typing import Any, Sequence
@@ -171,17 +178,19 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
         office_repo = AsyncOfficeRepository(session=session)
         org = await org_repo.find_one_by(name=org_name)
         if not org:
-            await callback.message.edit_text(
-                text=f"Organization '{org_name}' not found.",
-                reply_markup=get_back_to_main_menu_keyboard(),
-            )
+            if hasattr(callback.message, "edit_text"):
+                await callback.message.edit_text(
+                    text=f"Organization '{org_name}' not found.",
+                    reply_markup=get_back_to_main_menu_keyboard(),
+                )
             return
         offices: Sequence[Any] = await office_repo.get_by_organization(org.id)
         if not offices:
-            await callback.message.edit_text(
-                text=f"No offices found for {org_name}.",
-                reply_markup=get_back_to_main_menu_keyboard(),
-            )
+            if hasattr(callback.message, "edit_text"):
+                await callback.message.edit_text(
+                    text=f"No offices found for {org_name}.",
+                    reply_markup=get_back_to_main_menu_keyboard(),
+                )
             return
         office_lines = [f"{o.name} - {o.address}" for o in offices]
         gmaps_url = generate_google_maps_multi_pin_url(offices)
@@ -191,11 +200,12 @@ async def handle_organization_selection(callback: CallbackQuery) -> None:
             + "\n".join(office_lines)
             + f"\n\n<a href='{gmaps_url}'>Open all in Google Maps</a> | <a href='{amap_url}'>Open all in Apple Maps</a>"
         )
-        await callback.message.edit_text(
-            text=response,
-            reply_markup=get_back_to_main_menu_keyboard(),
-            parse_mode="HTML",
-        )
+        if hasattr(callback.message, "edit_text"):
+            await callback.message.edit_text(
+                text=response,
+                reply_markup=get_back_to_main_menu_keyboard(),
+                parse_mode="HTML",
+            )
 
 
 @router.callback_query(F.data == "main_menu")
@@ -552,6 +562,27 @@ async def handle_find_office_by_org(callback: CallbackQuery) -> None:
         )
 
 
+@router.callback_query(F.data == "share_location")
+async def handle_share_location(callback: CallbackQuery) -> None:
+    """
+    Prompt the user to share their location using a reply keyboard with request_location=True.
+    """
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Share location", request_location=True)],
+            [KeyboardButton(text="Cancel")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    if callback.message is not None:
+        await callback.message.answer(
+            "Please share your location using the button below.",
+            reply_markup=keyboard,
+        )
+        await callback.answer()
+
+
 @router.message(F.location)
 async def handle_location_message(message: Message) -> None:
     """
@@ -615,3 +646,5 @@ async def handle_location_message(message: Message) -> None:
         await message.answer(text, parse_mode="HTML")
     # Clear state after use
     user_search_state.pop(user_id, None)
+    # Remove the reply keyboard
+    await message.answer("Thank you!", reply_markup=ReplyKeyboardRemove())

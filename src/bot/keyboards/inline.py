@@ -117,3 +117,24 @@ def get_find_office_menu_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
     )
     return builder.as_markup()
+
+
+def get_location_or_fallback_keyboard() -> InlineKeyboardMarkup:
+    """Get keyboard for location prompt or fallback to organization list.
+
+    Returns:
+        InlineKeyboardMarkup: The keyboard for location or fallback.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Share location", callback_data="share_location")
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="List organizations", callback_data="find_office_by_org"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
+    )
+    return builder.as_markup()
