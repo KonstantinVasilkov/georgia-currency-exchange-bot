@@ -545,7 +545,13 @@ async def handle_location_message(message: Message) -> None:
     if not user_id or not message.location:
         await message.reply("Could not determine user or location.")
         return
-    state = user_search_state.get(user_id, {})
+    state = user_search_state.get(user_id)
+    if state is None:
+        await message.reply(
+            "Session expired or context lost. Returning to main menu.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        return
     lat = message.location.latitude
     lon = message.location.longitude
     async with async_get_db_session() as session:
@@ -681,7 +687,11 @@ async def handle_location_message(message: Message) -> None:
             f"\n🕒 <b>Working hours</b>:\n{schedule_str}"
             f"\n💱 <b>Rates</b>:\n{rates_str}"
         )
-        await message.answer(office_info, parse_mode="HTML", reply_markup=get_back_to_main_menu_keyboard())
+        await message.answer(
+            office_info,
+            parse_mode="HTML",
+            reply_markup=get_back_to_main_menu_keyboard(),
+        )
     # Clear state after use
     user_search_state.pop(user_id, None)
 

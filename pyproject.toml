@@ -31,4 +31,5 @@ dev = [
 omit = [
     "src/db/migrations/*",
     "src/config/*",
+    "src/start_*",
 ]
