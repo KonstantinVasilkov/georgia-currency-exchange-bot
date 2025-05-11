@@ -20,7 +20,6 @@ from src.bot.keyboards.inline import (
     get_find_office_menu_keyboard,
     get_location_or_fallback_keyboard,
     get_open_office_filter_keyboard,
-    get_single_main_menu_keyboard,
 )
 from src.services.currency_service import CurrencyService
 from src.repositories.organization_repository import AsyncOrganizationRepository
@@ -682,11 +681,9 @@ async def handle_location_message(message: Message) -> None:
             f"\n🕒 <b>Working hours</b>:\n{schedule_str}"
             f"\n💱 <b>Rates</b>:\n{rates_str}"
         )
-        await message.answer(office_info, parse_mode="HTML")
+        await message.answer(office_info, parse_mode="HTML", reply_markup=get_back_to_main_menu_keyboard())
     # Clear state after use
     user_search_state.pop(user_id, None)
-    # Remove the reply keyboard and show main menu button
-    await message.answer("Main menu:", reply_markup=get_single_main_menu_keyboard())
 
 
 @router.callback_query(F.data == "filter_open_only")
