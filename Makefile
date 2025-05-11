@@ -16,7 +16,7 @@ format:
 test_with_coverage:
 	$(CMD) coverage run -m pytest ;\
     $(CMD) coverage report ;\
-    $(CMD) coverage xml
+    $(CMD) coverage html
 
 test:
 	${CMD} pytest -v

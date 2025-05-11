@@ -147,12 +147,3 @@ def get_open_office_filter_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
     )
     return builder.as_markup()
-
-
-def get_single_main_menu_keyboard() -> InlineKeyboardMarkup:
-    """Get a keyboard with a single 'Main menu' button."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Main menu", callback_data="main_menu")]
-        ]
-    )
