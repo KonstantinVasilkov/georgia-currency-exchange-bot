@@ -20,7 +20,7 @@ def test_find_office_menu_keyboard_options() -> None:
     callback_data = [btn.callback_data for btn in buttons]
     assert "Find nearest office (share location)" in texts
     assert "Find nearest office with best rates (share location)" in texts
-    assert "Show all offices of a chosen organization" in texts
+    assert "Chose an organization" in texts
     assert "Back to main menu" in texts
     assert "find_nearest_office" in callback_data
     assert "find_best_rate_office" in callback_data

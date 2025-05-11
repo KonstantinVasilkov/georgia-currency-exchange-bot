@@ -13,24 +13,11 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup: The main menu keyboard.
     """
     builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Best Rates", callback_data="best_rates"))
     builder.row(
         InlineKeyboardButton(
             text="Find Nearest Office", callback_data="find_office_menu"
         )
-    )
-    builder.row(InlineKeyboardButton(text="Best Rates", callback_data="best_rates"))
-    builder.row(
-        InlineKeyboardButton(
-            text="Best rates between currencies", callback_data="best_rates_between"
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="Available organizations", callback_data="list_organizations"
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(text="Share location", callback_data="share_location")
     )
     return builder.as_markup()
 
@@ -100,19 +87,19 @@ def get_find_office_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="Find nearest office (share location)",
-            callback_data="find_nearest_office",
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
             text="Find nearest office with best rates (share location)",
             callback_data="find_best_rate_office",
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text="Show all offices of a chosen organization",
+            text="Find nearest office (share location)",
+            callback_data="find_nearest_office",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Chose an organization",
             callback_data="find_office_by_org",
         )
     )
@@ -160,3 +147,12 @@ def get_open_office_filter_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="Back to main menu", callback_data="main_menu")
     )
     return builder.as_markup()
+
+
+def get_single_main_menu_keyboard() -> InlineKeyboardMarkup:
+    """Get a keyboard with a single 'Main menu' button."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Main menu", callback_data="main_menu")]
+        ]
+    )
