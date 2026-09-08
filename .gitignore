@@ -130,7 +130,6 @@ celerybeat.pid
 # Environments
 .env
 .env.dev
-.env.test
 .venv
 env/
 venv/
@@ -182,3 +181,10 @@ cython_debug/
 
 # logs
 /logs
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Local logs
+logs/

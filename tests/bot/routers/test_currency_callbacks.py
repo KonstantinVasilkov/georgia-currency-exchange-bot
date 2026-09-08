@@ -407,6 +407,11 @@ async def test_handle_to_currency_selection(monkeypatch):
         "src.bot.routers.conversion.get_back_to_main_menu_keyboard",
         lambda *args, **kwargs: "keyboard",
     )
+    # Patch the service so the handler does not need a populated database
+    monkeypatch.setattr(
+        "src.bot.routers.conversion.CurrencyService.get_best_rates_for_pair",
+        AsyncMock(return_value=[{"organization": "NBG", "rate": 0.9210}]),
+    )
     await handle_to_currency_selection(callback)
     assert "USD" in sent["text"]
     assert "EUR" in sent["text"]
@@ -587,6 +592,13 @@ async def test_handle_location_message_happy(monkeypatch):
         location, "AsyncRateRepository", lambda session, model_class=None: rate_repo
     )
     monkeypatch.setattr(location, "format_weekly_schedule", lambda s: "Mon-Fri: 9-18")
+    # The handler imports the schedule repository lazily, so patch it at its source
+    monkeypatch.setattr(
+        "src.repositories.schedule_repository.AsyncScheduleRepository",
+        lambda session, model_class=None: AsyncMock(
+            get_by_office_id=AsyncMock(return_value=[])
+        ),
+    )
     location.user_search_state[321] = {"mode": "find_nearest_office"}
     await location.handle_location_message(msg)
     assert "🏢" in sent["text"]
