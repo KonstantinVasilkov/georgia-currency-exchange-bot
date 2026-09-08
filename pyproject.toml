@@ -1,7 +1,7 @@
 [project]
 name = "georgia-currency-exchange-bot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Telegram bot with currency rates, nearest exchange offices and conversion for Georgia"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
