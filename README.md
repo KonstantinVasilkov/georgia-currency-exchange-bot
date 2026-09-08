@@ -1,5 +1,7 @@
 # Georgia Currency Exchange Bot
 
+[![CI](https://github.com/KonstantinVasilkov/georgia-currency-exchange-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/KonstantinVasilkov/georgia-currency-exchange-bot/actions/workflows/ci.yml)
+
 A Telegram bot providing real-time currency exchange rates, location-based office search, and conversion tools for Georgia. The system is designed for correctness, privacy, and simplicity, with a modular, testable architecture.
 
 ---
@@ -48,7 +50,9 @@ repo/
 │   ├── start_bot.py        # Bot entrypoint
 │   └── start_sync.py       # Sync/scheduler entrypoint
 ├── tests/                  # Unit and integration tests (pytest only)
-├── .env.dev                # Example environment variables
+├── docs/                   # Spec, refactoring and coverage plans
+├── .github/workflows/      # CI: ruff, mypy, pytest
+├── .env.example            # Example environment variables (copy to .env.dev)
 ├── pyproject.toml          # Dependencies and tool config
 ├── alembic.ini             # DB migrations
 ├── Makefile                # Common dev commands
@@ -87,20 +91,18 @@ repo/
 
 1. **Clone the repository:**
    ```sh
-   git clone <repo-url>
+   git clone https://github.com/KonstantinVasilkov/georgia-currency-exchange-bot.git
    cd georgia-currency-exchange-bot
    ```
-2. **Install [uv](https://github.com/astral-sh/uv) and create a virtual environment:**
+2. **Install [uv](https://github.com/astral-sh/uv) and sync the environment** (creates `.venv` and installs all dependencies, including dev tools):
    ```sh
-   uv venv .venv
-   source .venv/bin/activate
-   uv pip install -r requirements.txt
+   uv sync
    ```
 3. **Configure environment variables:**
-   - Copy `.env.dev` to `.env` and fill in your secrets (Telegram token, Sentry DSN, etc.)
+   - Copy `.env.example` to `.env.dev` and fill in your Telegram bot token (and Sentry DSN if you use it). Settings are loaded from `.env.dev` at runtime and from `.env.test` under pytest.
 4. **Run database migrations:**
    ```sh
-   alembic upgrade head
+   uv run alembic upgrade head
    ```
 
 ---
@@ -109,13 +111,13 @@ repo/
 
 - **Start the Telegram bot:**
   ```sh
-  python src/start_bot.py
+  make start_bot        # uv run python -m src.start_bot
   ```
 - **Start the sync/scheduler service:**
   ```sh
-  python src/start_sync.py
+  make start_sync       # uv run python -m src.start_sync
   ```
-- **Both can be run in separate containers (see Dockerfile/docker-compose.yml if present)**
+- Both processes are independent and can run in separate containers.
 
 ---
 
@@ -123,20 +125,24 @@ repo/
 
 - **Run all tests:**
   ```sh
-  pytest
+  make test             # uv run pytest -v
   ```
 - **Run with coverage:**
   ```sh
-  pytest --cov=src
+  make test_with_coverage
   ```
-- **Type checking:**
+- **Type checking and linting:**
   ```sh
-  mypy src/
+  make lint             # ruff check --fix + mypy
+  make format           # ruff format
   ```
-- **Linting:**
-  ```sh
-  ruff check src/
-  ```
+- The same checks run in GitHub Actions on every push and pull request (`.github/workflows/ci.yml`).
+
+---
+
+## Project Documentation
+
+Design notes live in [`docs/`](docs/): the original [developer specification](docs/spec.md), the [refactoring plan](docs/refactoring_plan.md) and [checklist](docs/refactoring_todo.md), and the [test coverage plan](docs/coverage_plan.md).
 
 ---
 
@@ -153,7 +159,7 @@ repo/
 
 ## Configuration Reference
 
-- All configuration is managed via environment variables (see `.env.dev` for example):
+- All configuration is managed via environment variables (see `.env.example`):
   - `TELEGRAM_BOT_TOKEN`: Telegram bot token
   - `DATABASE_URL`: SQLite DB URL
   - `SENTRY_DSN`: Sentry DSN for error reporting
@@ -164,4 +170,4 @@ repo/
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).

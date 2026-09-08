@@ -12,6 +12,7 @@ from src.config.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
+@pytest.mark.integration  # hits the live MyFin API; blocked from CI runners (403)
 @pytest.mark.asyncio
 async def test_api_connector():
     """Test that the MyFinApiConnector can fetch exchange rates."""
